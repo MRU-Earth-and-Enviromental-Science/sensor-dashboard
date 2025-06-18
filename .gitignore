@@ -10,19 +10,57 @@
 # production
 /build
 
-# debug
+# debug & logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files
 .env*
+!.env.example
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
+next-env.d.ts
+
+# build output
 /dist/
 
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# coverage reports
+coverage/
+
+# Electron
+*.asar
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# SASS cache
+.sass-cache/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+
+/release/
+*.dmg
+*.exe
+*.AppImage
