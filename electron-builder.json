@@ -1,0 +1,17 @@
+{
+  "appId": "com.example.serial-dashboard",
+  "productName": "Serial Dashboard",
+  "directories": {
+    "output": "dist"
+  },
+  "files": ["out/**/*", "public/main.js", "public/preload.js", "node_modules/**/*"],
+  "mac": {
+    "category": "public.app-category.developer-tools"
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}

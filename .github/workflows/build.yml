@@ -1,0 +1,122 @@
+name: Build and Package Electron App
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Next.js
+        run: npm run build-electron
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Package Electron App
+        run: npm run dist
+
+      - name: Upload packaged apps
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-electron-app-macos-windows
+          path: |
+            dist/*.dmg
+            dist/*.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Next.js
+        run: npm run build-electron
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Package Electron App
+        run: npm run dist
+
+      - name: Upload packaged apps
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-electron-app-windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Next.js
+        run: npm run build-electron
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Package Electron App
+        run: npm run dist
+
+      - name: Upload packaged apps
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-electron-app-linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.tar.gz
+
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
