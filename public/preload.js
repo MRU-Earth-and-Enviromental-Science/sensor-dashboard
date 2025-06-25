@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
+console.log("Preload script is loading...")
+
 contextBridge.exposeInMainWorld("electronAPI", {
   getSerialPorts: () => ipcRenderer.invoke("get-serial-ports"),
   connectSerial: (port, baudRate) => ipcRenderer.invoke("connect-serial", port, baudRate),
@@ -14,3 +16,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
 })
+
+console.log("Preload script finished loading, electronAPI exposed")

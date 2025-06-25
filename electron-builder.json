@@ -4,8 +4,23 @@
   "directories": {
     "output": "dist"
   },
-  "files": ["out/**/*", "public/main.js", "public/preload.js", "node_modules/**/*"],
+  "files": [
+    "public/**/*",
+    "out/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "dist/serial_backend",
+      "to": "serial_backend"
+    }
+  ],
+  "asarUnpack": [
+    "public/preload.js"
+  ],
   "mac": {
+    "target": "dmg",
     "category": "public.app-category.developer-tools"
   },
   "win": {

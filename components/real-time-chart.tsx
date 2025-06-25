@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Line, LineChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { TrendingUp } from "lucide-react"
+import { useMemo } from "react"
 
 interface ChartData {
   timestamp: string
@@ -13,7 +14,7 @@ interface ChartData {
 }
 
 interface RealTimeChartProps {
-  chartData: ChartData[]
+  chartData: ChartData[] // This will be exactly 50 points
   selectedChart: string
   onChartChange: (value: string) => void
   onExpandChart: () => void
@@ -32,23 +33,36 @@ const sensorLabels = {
   pm_10_0: "PM10.0 (μg/m³)",
 }
 
+// Define colors for each sensor
+const sensorColors = {
+  temp: "#0080FF", // Electric blue
+  humid: "#FF6B35", // Orange
+  ch4: "#FF1744", // Red
+  co2: "#4CAF50", // Green
+  tvoc: "#FFEB3B", // Yellow
+  co: "#795548", // Brown
+  nox: "#9C27B0", // Purple
+  pm_1_0: "#607D8B", // Blue grey
+  pm_2_5: "#E91E63", // Pink
+  pm_10_0: "#00BCD4", // Cyan
+}
+
 const graphableFields = Object.keys(sensorLabels) as (keyof typeof sensorLabels)[]
 
 export function RealTimeChart({ chartData, selectedChart, onChartChange, onExpandChart }: RealTimeChartProps) {
-  // Filter out -1 values and use last valid value
-  const filteredData = chartData.reduce((acc: ChartData[], point: ChartData) => {
-    if (point.value === -1) {
-      // Use the last valid value if available
-      const lastValidValue = acc.length > 0 ? acc[acc.length - 1].value : 0
-      acc.push({
-        ...point,
-        value: lastValidValue,
-      })
-    } else {
-      acc.push(point)
-    }
-    return acc
-  }, [])
+  // Memoize chart config with sensor-specific colors
+  const chartConfig = useMemo(
+    () => ({
+      value: {
+        label: sensorLabels[selectedChart as keyof typeof sensorLabels],
+        color: sensorColors[selectedChart as keyof typeof sensorColors],
+      },
+    }),
+    [selectedChart],
+  )
+
+  // Get the color for the current sensor
+  const currentSensorColor = sensorColors[selectedChart as keyof typeof sensorColors]
 
   return (
     <Card
@@ -57,12 +71,12 @@ export function RealTimeChart({ chartData, selectedChart, onChartChange, onExpan
     >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-red-500" />
+          <TrendingUp className="h-5 w-5" style={{ color: currentSensorColor }} />
           Real-time Chart Preview
         </CardTitle>
         <CardDescription>
           <div className="flex items-center justify-between">
-            <span>Live data visualization (last 50 points) - Click to expand</span>
+            <span>Live data visualization (last {chartData.length} points) - Click to expand</span>
             <Select value={selectedChart} onValueChange={onChartChange}>
               <SelectTrigger className="w-48" onClick={(e) => e.stopPropagation()}>
                 <SelectValue />
@@ -70,7 +84,10 @@ export function RealTimeChart({ chartData, selectedChart, onChartChange, onExpan
               <SelectContent>
                 {graphableFields.map((field) => (
                   <SelectItem key={field} value={field}>
-                    {sensorLabels[field]}
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: sensorColors[field] }} />
+                      {sensorLabels[field]}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -83,19 +100,14 @@ export function RealTimeChart({ chartData, selectedChart, onChartChange, onExpan
       <div className="h-8"></div>
 
       <CardContent className="pt-0 pb-4">
-        {filteredData.length > 0 ? (
+        {chartData.length > 0 ? (
           <div className="relative -ml-6 -mr-2 transform translate-y-0 -translate-x-1">
-            <ChartContainer
-              config={{
-                value: {
-                  label: sensorLabels[selectedChart as keyof typeof sensorLabels],
-                  color: "hsl(var(--chart-1))",
-                },
-              }}
-              className="h-[400px] w-full"
-            >
+            <ChartContainer config={chartConfig} className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={filteredData} margin={{ top: 20, right: 5, left: 0, bottom: 20 }}>
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 20, right: 5, left: 0, bottom: 20 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="timestamp"
@@ -114,10 +126,14 @@ export function RealTimeChart({ chartData, selectedChart, onChartChange, onExpan
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#ff0000"
+                    stroke={currentSensorColor}
                     strokeWidth={2}
                     dot={false}
                     name={sensorLabels[selectedChart as keyof typeof sensorLabels]}
+                    // Smooth line animations
+                    isAnimationActive={true}
+                    animationDuration={200}
+                    connectNulls={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
