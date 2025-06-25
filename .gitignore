@@ -74,3 +74,5 @@ serial_backend.spec.pyw
 serial_backend.spec.pyz
 serial_backend.spec.pywz
 serial_backend.spec.pyzw
+
+.venv
