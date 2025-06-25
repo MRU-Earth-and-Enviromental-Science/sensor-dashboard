@@ -9,7 +9,7 @@
     "start": "next start",
     "electron": "electron public/main.js",
     "electron-dev": "ELECTRON_IS_DEV=1 electron public/main.js",
-    "build-electron": "next build",
+    "build-electron": "next build && node fix-assets.js",
     "dist": "npm run build-electron && electron-builder --publish never"
   },
   "dependencies": {
@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@serialport/parser-readline": "latest",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
@@ -58,6 +59,7 @@
     "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
+    "react-is": "^19.1.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
     "serialport": "latest",

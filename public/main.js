@@ -1,29 +1,37 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron")
-const { SerialPort } = require("serialport")
-const { ReadlineParser } = require("@serialport/parser-readline")
 const path = require("path")
 const fs = require("fs")
+const { spawn } = require('child_process')
+const axios = require('axios')
 
 let mainWindow
-let serialPort = null
-let parser = null
-let isLogging = false
-let loggedData = []
+let pythonProcess = null
+let pollInterval = null
 
 function createWindow() {
+  const isDev = process.env.ELECTRON_IS_DEV === "1"
+
+  let preloadPath
+  if (isDev) {
+    preloadPath = path.join(__dirname, "preload.js")
+  } else {
+    preloadPath = path.join(process.resourcesPath, "app.asar.unpacked", "public", "preload.js")
+  }
+
+  console.log("Preload path:", preloadPath)
+  console.log("__dirname:", __dirname)
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
+      preload: preloadPath,
     },
     titleBarStyle: "default",
     show: false,
   })
-
-  const isDev = process.env.ELECTRON_IS_DEV === "1"
 
   if (isDev) {
     mainWindow.loadURL("http://localhost:3000")
@@ -37,14 +45,48 @@ function createWindow() {
   })
 
   mainWindow.on("closed", () => {
-    if (serialPort && serialPort.isOpen) {
-      serialPort.close()
-    }
     mainWindow = null
   })
 }
 
-app.whenReady().then(createWindow)
+function startPythonBackend() {
+  const isDev = process.env.ELECTRON_IS_DEV === "1";
+  const isWin = process.platform === 'win32';
+
+  let pythonCmd, pythonArgs;
+
+  if (isDev) {
+    // Use Python script in development
+    pythonCmd = 'python3';
+    pythonArgs = [path.join(__dirname, '..', 'serial_backend.py')];
+  } else {
+    // Use binary in production - look in extraResources
+    const resourcePath = process.platform === 'darwin'
+      ? path.join(process.resourcesPath, 'serial_backend')
+      : path.join(process.resourcesPath, 'serial_backend.exe');
+    pythonCmd = resourcePath;
+    pythonArgs = [];
+  }
+
+  try {
+    pythonProcess = spawn(pythonCmd, pythonArgs, {
+      stdio: 'ignore',
+      detached: true
+    });
+
+    // Wait a bit for the backend to start
+    setTimeout(() => {
+      // Optional: check if backend is responding
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to start Python backend:', error);
+  }
+}
+
+app.whenReady().then(() => {
+  startPythonBackend()
+  createWindow()
+})
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -58,210 +100,94 @@ app.on("activate", () => {
   }
 })
 
-// IPC handlers
-ipcMain.handle("get-serial-ports", async () => {
+// Replace IPC handlers with HTTP calls to Python backend
+ipcMain.handle('get-serial-ports', async () => {
   try {
-    const ports = await SerialPort.list()
-    return ports.filter((port) => port.path)
+    const res = await axios.get('http://127.0.0.1:5001/serial/ports')
+    return res.data
   } catch (error) {
-    console.error("Error listing ports:", error)
     return []
   }
 })
 
-ipcMain.handle("connect-serial", async (event, portPath, baudRate = 9600) => {
-  try {
-    if (serialPort && serialPort.isOpen) {
-      serialPort.close()
+function startPollingSerialData() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:5001/serial/latest');
+      if (res.data && res.data.timestamp) {
+        mainWindow.webContents.send('serial-data', res.data);
+      }
+    } catch (e) {
+      // Optionally handle errors
     }
+  }, 1000); // every second
+}
 
-    serialPort = new SerialPort({
-      path: portPath,
-      baudRate: Number.parseInt(baudRate),
-    })
+ipcMain.handle('connect-serial', async (event, portPath, baudRate = 9600) => {
+  try {
+    const res = await axios.post('http://127.0.0.1:5001/serial/connect', {
+      port: portPath,
+      baudrate: baudRate,
+    });
+    if (res.data && res.data.success) {
+      mainWindow.webContents.send('serial-status', { connected: true, port: portPath });
+      startPollingSerialData();
+    }
+    return res.data;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 
-    parser = serialPort.pipe(new ReadlineParser({ delimiter: "\n" }))
+ipcMain.handle('disconnect-serial', async () => {
+  try {
+    const res = await axios.post('http://127.0.0.1:5001/serial/disconnect');
+    if (res.data && res.data.success) {
+      if (pollInterval) clearInterval(pollInterval);
+      mainWindow.webContents.send('serial-status', { connected: false });
+    }
+    return res.data;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 
-    serialPort.on("open", () => {
-      mainWindow.webContents.send("serial-status", { connected: true, port: portPath })
-    })
-
-    serialPort.on("error", (err) => {
-      mainWindow.webContents.send("serial-error", err.message)
-    })
-
-    serialPort.on("close", () => {
-      mainWindow.webContents.send("serial-status", { connected: false })
-    })
-
-    parser.on("data", (data) => {
-      const timestamp = new Date().toISOString()
-      const parsedData = parseSerialData(data.trim())
-
-      console.log("Raw data:", data.trim())
-      console.log("Parsed data:", parsedData)
-
-      const dataPoint = {
-        timestamp,
-        raw: data.trim(),
-        ...parsedData,
-      }
-
-      if (isLogging) {
-        loggedData.push(dataPoint)
-      }
-
-      mainWindow.webContents.send("serial-data", dataPoint)
-    })
-
-    return { success: true }
+ipcMain.handle('start-logging', async () => {
+  try {
+    const res = await axios.post('http://127.0.0.1:5001/serial/log/start')
+    return res.data
   } catch (error) {
     return { success: false, error: error.message }
   }
 })
 
-ipcMain.handle("disconnect-serial", async () => {
+ipcMain.handle('stop-logging', async () => {
   try {
-    if (serialPort && serialPort.isOpen) {
-      serialPort.close()
-    }
-    return { success: true }
+    const res = await axios.post('http://127.0.0.1:5001/serial/log/stop')
+    return res.data
   } catch (error) {
     return { success: false, error: error.message }
   }
 })
 
-ipcMain.handle("start-logging", async () => {
-  isLogging = true
-  loggedData = []
-  return { success: true }
-})
-
-ipcMain.handle("stop-logging", async () => {
-  isLogging = false
-  return { success: true, dataCount: loggedData.length }
-})
-
-ipcMain.handle("export-csv", async () => {
+ipcMain.handle('export-csv', async () => {
   try {
-    if (loggedData.length === 0) {
-      return { success: false, error: "No data to export" }
-    }
-
+    // Ask user where to save
     const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `serial-data-${new Date().toISOString().split("T")[0]}.csv`,
-      filters: [{ name: "CSV Files", extensions: ["csv"] }],
+      defaultPath: `serial-data-${new Date().toISOString().split('T')[0]}.csv`,
+      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
     })
-
-    if (!result.canceled) {
-      const csvContent = convertToCSV(loggedData)
-      fs.writeFileSync(result.filePath, csvContent)
-      return { success: true, filePath: result.filePath }
+    if (result.canceled) {
+      return { success: false, error: 'Export cancelled' }
     }
-
-    return { success: false, error: "Export cancelled" }
+    // Download CSV from backend
+    const response = await axios.get('http://127.0.0.1:5001/serial/log/export', {
+      responseType: 'arraybuffer',
+    })
+    fs.writeFileSync(result.filePath, response.data)
+    return { success: true, filePath: result.filePath }
   } catch (error) {
     return { success: false, error: error.message }
   }
 })
-
-function parseSerialData(data) {
-  try {
-    console.log("Parsing data:", data)
-
-    // Initialize result object
-    const result = {}
-
-    // Remove the [ESP-NOW] RX prefix if present
-    const cleanData = data.replace(/^\[ESP-NOW\]\s*RX\s*/, "").trim()
-    console.log("Clean data:", cleanData)
-
-    // Split by spaces and process each part
-    const parts = cleanData.split(/\s+/)
-
-    for (const part of parts) {
-      if (part.includes(":")) {
-        const [key, value] = part.split(":")
-
-        if (key && value !== undefined) {
-          const cleanKey = key.trim().toLowerCase()
-          const cleanValue = value.trim()
-
-          console.log(`Processing: ${cleanKey} = ${cleanValue}`)
-
-          // Handle special values
-          if (cleanValue === "nan" || cleanValue === "inf" || cleanValue === "-inf") {
-            result[cleanKey] = null
-          } else {
-            const numValue = Number.parseFloat(cleanValue)
-            result[cleanKey] = isNaN(numValue) ? cleanValue : numValue
-          }
-        }
-      }
-    }
-
-    console.log("Parsed result:", result)
-
-    // Map to expected field names
-    const mappedData = {}
-
-    if (result.t !== undefined) mappedData.temp = result.t
-    if (result.h !== undefined) mappedData.humid = result.h
-    if (result.ch4 !== undefined) mappedData.ch4 = result.ch4
-    if (result.co2 !== undefined) mappedData.co2 = result.co2
-    if (result.tvoc !== undefined) mappedData.tvoc = result.tvoc
-    if (result.co !== undefined) mappedData.co = result.co
-    if (result.nox !== undefined) mappedData.nox = result.nox
-    if (result["pm1.0"] !== undefined) mappedData.pm_1_0 = result["pm1.0"]
-    if (result["pm2.5"] !== undefined) mappedData.pm_2_5 = result["pm2.5"]
-    if (result["pm10.0"] !== undefined) mappedData.pm_10_0 = result["pm10.0"]
-    if (result.lat !== undefined) mappedData.lat = result.lat
-    if (result.lon !== undefined) mappedData.lon = result.lon
-
-    console.log("Final mapped data:", mappedData)
-    return mappedData
-  } catch (error) {
-    console.error("Error parsing serial data:", error)
-    return {}
-  }
-}
-
-function convertToCSV(data) {
-  if (data.length === 0) return ""
-
-  // Define the column order we want
-  const columnOrder = [
-    "timestamp",
-    "temp",
-    "humid",
-    "ch4",
-    "co2",
-    "tvoc",
-    "co",
-    "nox",
-    "pm_1_0",
-    "pm_2_5",
-    "pm_10_0",
-    "lat",
-    "lon",
-    "raw",
-  ]
-
-  // Create header row
-  const csvRows = [columnOrder.join(",")]
-
-  // Add data rows
-  data.forEach((row) => {
-    const values = columnOrder.map((header) => {
-      const value = row[header]
-      if (value === null || value === undefined) {
-        return ""
-      }
-      // Escape commas in string values
-      return typeof value === "string" && value.includes(",") ? `"${value}"` : value
-    })
-    csvRows.push(values.join(","))
-  })
-
-  return csvRows.join("\n")
-}

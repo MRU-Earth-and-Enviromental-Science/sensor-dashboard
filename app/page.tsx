@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConnectionScreen } from "@/components/connection-screen"
 import { ConnectAnimation } from "@/components/connect-animation"
@@ -70,8 +70,11 @@ export default function SerialDashboard() {
   const [isLogging, setIsLogging] = useState(false)
   const [currentData, setCurrentData] = useState<SerialData | null>(null)
   const [recentData, setRecentData] = useState<SerialData[]>([])
-  const [chartData, setChartData] = useState<any[]>([])
-  const [allChartData, setAllChartData] = useState<Record<string, any[]>>({})
+
+  // Separate state for preview chart (50 points) and full history chart
+  const [previewChartData, setPreviewChartData] = useState<any[]>([])
+  const [fullHistoryData, setFullHistoryData] = useState<Record<string, any[]>>({})
+
   const [selectedChart, setSelectedChart] = useState<keyof typeof sensorLabels>("temp")
   const [loggedCount, setLoggedCount] = useState(0)
   const [error, setError] = useState<string>("")
@@ -80,15 +83,58 @@ export default function SerialDashboard() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [showDisconnectAnimation, setShowDisconnectAnimation] = useState(false)
+  const [hasError, setHasError] = useState(false)
+
+  // Refs to maintain rolling window for preview (exactly 50 points)
+  const previewDataBuffers = useRef<Record<string, any[]>>({})
 
   useEffect(() => {
-    setIsElectron(typeof window !== "undefined" && window.electronAPI !== undefined)
+    try {
+      console.log("Checking for Electron environment...")
+      console.log("window.electronAPI:", window.electronAPI)
+      console.log("typeof window.electronAPI:", typeof window.electronAPI)
 
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem("theme")
-    if (savedTheme === "dark") {
-      setIsDarkMode(true)
-      document.documentElement.classList.add("dark")
+      const checkElectron = () => {
+        try {
+          const hasElectron = typeof window !== "undefined" && window.electronAPI !== undefined
+          console.log("Electron detected:", hasElectron)
+          setIsElectron(hasElectron)
+          return hasElectron
+        } catch (error) {
+          console.error("Error checking Electron:", error)
+          setIsElectron(false)
+          return false
+        }
+      }
+
+      // Check immediately
+      if (!checkElectron()) {
+        // If not detected, retry a few times with delays
+        let retries = 0
+        const maxRetries = 5
+        const checkInterval = setInterval(() => {
+          try {
+            retries++
+            console.log(`Retry ${retries}/${maxRetries} for Electron detection`)
+            if (checkElectron() || retries >= maxRetries) {
+              clearInterval(checkInterval)
+            }
+          } catch (error) {
+            console.error("Error in retry:", error)
+            clearInterval(checkInterval)
+          }
+        }, 500)
+      }
+
+      // Check for saved theme preference
+      const savedTheme = localStorage.getItem("theme")
+      if (savedTheme === "dark") {
+        setIsDarkMode(true)
+        document.documentElement.classList.add("dark")
+      }
+    } catch (error) {
+      console.error("Error in useEffect:", error)
+      setIsElectron(false)
     }
   }, [])
 
@@ -123,32 +169,40 @@ export default function SerialDashboard() {
       setCurrentData(data)
       setRecentData((prev) => [data, ...prev.slice(0, 99)])
 
-      // Update chart data for current selected chart
-      const value = data[selectedChart]
-      const chartPoint = {
-        timestamp: new Date(data.timestamp).toLocaleTimeString(),
-        value: value !== undefined && value !== null ? value : 0,
-        fullTimestamp: data.timestamp,
-      }
-      setChartData((prev) => [...prev.slice(-49), chartPoint]) // Keep last 50 points for preview
+      // Process each sensor's data
+      Object.keys(sensorLabels).forEach((sensor) => {
+        const sensorKey = sensor as keyof typeof sensorLabels
+        const sensorValue = data[sensorKey]
 
-      // Update all chart data for modal
-      setAllChartData((prev) => {
-        const updated = { ...prev }
-        Object.keys(sensorLabels).forEach((sensor) => {
-          const sensorKey = sensor as keyof typeof sensorLabels
-          const sensorValue = data[sensorKey]
-          if (sensorValue !== undefined && sensorValue !== null) {
-            const point = {
-              timestamp: new Date(data.timestamp).toLocaleTimeString(),
-              value: sensorValue,
-              fullTimestamp: data.timestamp,
-            }
-            updated[sensor] = [...(updated[sensor] || []), point]
+        if (sensorValue !== undefined && sensorValue !== null) {
+          const dataPoint = {
+            timestamp: new Date(data.timestamp).toLocaleTimeString(),
+            value: sensorValue === -1 ? previewDataBuffers.current[sensor]?.slice(-1)[0]?.value || 0 : sensorValue,
+            fullTimestamp: data.timestamp,
           }
-        })
-        return updated
+
+          // Update preview buffer (rolling window of exactly 50 points)
+          if (!previewDataBuffers.current[sensor]) {
+            previewDataBuffers.current[sensor] = []
+          }
+
+          previewDataBuffers.current[sensor] = [
+            ...previewDataBuffers.current[sensor].slice(-49), // Keep last 49 points
+            dataPoint, // Add new point (total = 50)
+          ]
+
+          // Update full history (unlimited)
+          setFullHistoryData((prev) => ({
+            ...prev,
+            [sensor]: [...(prev[sensor] || []), dataPoint],
+          }))
+        }
       })
+
+      // Update preview chart data for currently selected sensor
+      if (previewDataBuffers.current[selectedChart]) {
+        setPreviewChartData([...previewDataBuffers.current[selectedChart]])
+      }
 
       if (isLogging) {
         setLoggedCount((prev) => prev + 1)
@@ -169,8 +223,10 @@ export default function SerialDashboard() {
         setIsLogging(false)
         setLoggedCount(0)
         setShowDashboard(false)
-        setChartData([])
-        setAllChartData({})
+        setPreviewChartData([])
+        setFullHistoryData({})
+        // Clear preview buffers
+        previewDataBuffers.current = {}
       }
     }
 
@@ -189,20 +245,14 @@ export default function SerialDashboard() {
     }
   }, [isElectron, isLogging, selectedChart, showDashboard])
 
-  // Update chart data when selected chart changes
+  // Update preview chart when selected chart changes
   useEffect(() => {
-    if (recentData.length > 0) {
-      const newChartData = recentData
-        .slice(-50)
-        .reverse()
-        .map((data) => ({
-          timestamp: new Date(data.timestamp).toLocaleTimeString(),
-          value: data[selectedChart] !== undefined && data[selectedChart] !== null ? data[selectedChart] : 0,
-          fullTimestamp: data.timestamp,
-        }))
-      setChartData(newChartData)
+    if (previewDataBuffers.current[selectedChart]) {
+      setPreviewChartData([...previewDataBuffers.current[selectedChart]])
+    } else {
+      setPreviewChartData([])
     }
-  }, [selectedChart, recentData])
+  }, [selectedChart])
 
   const handleConnect = async () => {
     if (!selectedPort) return
@@ -228,8 +278,8 @@ export default function SerialDashboard() {
       await window.electronAPI.disconnectSerial()
       setCurrentData(null)
       setRecentData([])
-      setChartData([])
-      setAllChartData({})
+      setPreviewChartData([])
+      setFullHistoryData({})
 
       // After animation completes, reset states
       setTimeout(() => {
@@ -326,8 +376,8 @@ export default function SerialDashboard() {
         loggedCount={loggedCount}
         error={error}
         currentData={currentData}
-        chartData={chartData}
-        allChartData={allChartData}
+        chartData={previewChartData} // 50-point preview data
+        allChartData={fullHistoryData} // Full history data
         selectedChart={selectedChart}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}

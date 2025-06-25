@@ -64,3 +64,13 @@ Desktop.ini
 *.dmg
 *.exe
 *.AppImage
+
+serial_backend.spec
+serial_backend.spec.py
+serial_backend.spec.pyc
+serial_backend.spec.pyo
+serial_backend.spec.pyd
+serial_backend.spec.pyw
+serial_backend.spec.pyz
+serial_backend.spec.pywz
+serial_backend.spec.pyzw

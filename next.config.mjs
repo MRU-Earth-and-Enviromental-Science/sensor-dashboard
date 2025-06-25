@@ -2,6 +2,8 @@
 const nextConfig = {
   output: 'export',
   trailingSlash: true,
+  assetPrefix: './',
+  basePath: '',
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -10,6 +12,9 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+  },
+  experimental: {
+    esmExternals: false,
   },
 }
 
