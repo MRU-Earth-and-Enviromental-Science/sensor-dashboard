@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { EnvironmentalSensorMapWidget } from "./enviromental-sensor-map-widget"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -72,7 +73,7 @@ export function Dashboard({
 
   return (
     <div className="min-h-screen bg-background dashboard-fade-in flex flex-col">
-      <div className="flex-1">
+      <div className="flex-1 pb-20">
         <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -87,7 +88,7 @@ export function Dashboard({
                 onClick={onToggleDarkMode}
                 variant="outline"
                 size="icon"
-                className="hover:scale-110 transition-transform duration-200"
+                className="hover:scale-110 transition-transform duration-200 bg-transparent"
               >
                 {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
@@ -102,7 +103,7 @@ export function Dashboard({
                 onClick={onDisconnect}
                 variant="outline"
                 size="sm"
-                className="hover:scale-105 transition-transform duration-200"
+                className="hover:scale-105 transition-transform duration-200 bg-transparent"
               >
                 Disconnect
               </Button>
@@ -137,7 +138,10 @@ export function Dashboard({
                 </div>
                 <div className="flex gap-2">
                   {!isLogging ? (
-                    <Button onClick={onStartLogging} className="bg-blue-700 text-white hover:scale-105 transition-transform duration-200">
+                    <Button
+                      onClick={onStartLogging}
+                      className="bg-blue-700 text-white hover:scale-105 transition-transform duration-200"
+                    >
                       <Play className="h-4 w-4 mr-2" />
                       Start Logging
                     </Button>
@@ -145,7 +149,7 @@ export function Dashboard({
                     <Button
                       onClick={onStopLogging}
                       variant="outline"
-                      className="hover:scale-105 transition-transform duration-200"
+                      className="hover:scale-105 transition-transform duration-200 bg-transparent"
                     >
                       <Square className="h-4 w-4 mr-2" />
                       Stop Logging
@@ -155,7 +159,7 @@ export function Dashboard({
                     onClick={onExportCSV}
                     variant="outline"
                     disabled={loggedCount === 0}
-                    className="hover:scale-105 transition-transform duration-200 disabled:hover:scale-100"
+                    className="hover:scale-105 transition-transform duration-200 disabled:hover:scale-100 bg-transparent"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
@@ -166,7 +170,7 @@ export function Dashboard({
           </Card>
 
           {/* Main Content - Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <DataTable currentData={currentData} />
             <RealTimeChart
               chartData={chartData}
@@ -175,11 +179,23 @@ export function Dashboard({
               onExpandChart={() => setIsChartModalOpen(true)}
             />
           </div>
+
+          {/* Environmental Sensor Map Widget */}
+          <div className="w-full pb-96">
+            <EnvironmentalSensorMapWidget
+              className="mb-8 pb-6"
+              defaultPollutant="pm_2_5"
+              showPreview={true}
+              currentData={currentData}
+              isRealTime={isLogging}
+              isDarkMode={isDarkMode}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Footer with proper spacing */}
-      <div className="mt-auto">
+      {/* Fixed Footer */}
+      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 100 }}>
         <Footer />
       </div>
 

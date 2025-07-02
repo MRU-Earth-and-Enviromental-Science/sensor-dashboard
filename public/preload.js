@@ -10,11 +10,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stopLogging: () => ipcRenderer.invoke("stop-logging"),
   exportCSV: () => ipcRenderer.invoke("export-csv"),
 
+
   onSerialData: (callback) => ipcRenderer.on("serial-data", callback),
   onSerialStatus: (callback) => ipcRenderer.on("serial-status", callback),
   onSerialError: (callback) => ipcRenderer.on("serial-error", callback),
 
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+
+  getIpLocation: () => ipcRenderer.invoke("get-ip-location")
 })
 
 console.log("Preload script finished loading, electronAPI exposed")

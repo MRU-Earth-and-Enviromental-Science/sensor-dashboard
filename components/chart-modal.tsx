@@ -340,10 +340,25 @@ export function ChartModal({ isOpen, onClose, allChartData, selectedChart, onCha
                 <div className="text-sm text-muted-foreground flex items-center justify-between">
                   <span>
                     Showing {modalChartData.length} data points from{" "}
-                    {new Date(modalChartData[0]?.fullTimestamp).toLocaleString()} to{" "}
-                    {new Date(modalChartData[modalChartData.length - 1]?.fullTimestamp).toLocaleString()}
+                    {modalChartData.length > 0
+                      ? new Date(modalChartData[0]?.fullTimestamp).toLocaleString()
+                      : new Date().toLocaleString()} to{" "}
+                    {modalChartData.length > 0
+                      ? new Date(modalChartData[modalChartData.length - 1]?.fullTimestamp).toLocaleString()
+                      : new Date().toLocaleString()}
                   </span>
                   <span className="text-xs">💡 Click and drag on the chart to measure changes</span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <span>
+                    {(() => {
+                      const now = new Date();
+                      const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                      const localDate = now.toLocaleDateString("en-US", { timeZone: userTimeZone });
+                      const localTime = now.toLocaleTimeString("en-US", { timeZone: userTimeZone });
+                      return `Current Local Time (${userTimeZone}): ${localDate} ${localTime}`;
+                    })()}
+                  </span>
                 </div>
                 <ChartContainer config={chartConfig} className="h-[500px] w-full">
                   <ResponsiveContainer width="100%" height="100%">

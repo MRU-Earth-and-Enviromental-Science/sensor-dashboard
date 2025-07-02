@@ -79,7 +79,7 @@ def serial_read_loop():
         try:
             line = port.readline().decode(errors='ignore').strip()
             if line:
-                timestamp = datetime.utcnow().isoformat()
+                timestamp = datetime.utcnow().isoformat() + 'Z'
                 parsed = parse_serial_data(line)
                 data_point = {'timestamp': timestamp, 'raw': line, **parsed}
                 latest_data = data_point  # Save latest data for polling

@@ -33,6 +33,27 @@ function createWindow() {
     show: false,
   })
 
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    console.log('Permission requested:', permission);
+    if (permission === 'geolocation') {
+      console.log('Granting geolocation permission');
+      callback(true);
+    } else {
+      console.log('Denying permission:', permission);
+      callback(false);
+    }
+  });
+
+  mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+    console.log('Permission check:', permission);
+    if (permission === 'geolocation') {
+      console.log('Geolocation permission check: GRANTED');
+      return true;
+    }
+    console.log('Permission check denied:', permission);
+    return false;
+  });
+
   if (isDev) {
     mainWindow.loadURL("http://localhost:3000")
     mainWindow.webContents.openDevTools()
@@ -188,6 +209,30 @@ ipcMain.handle('export-csv', async () => {
     fs.writeFileSync(result.filePath, response.data)
     return { success: true, filePath: result.filePath }
   } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+// IPC handler for IP-based geolocation lookup
+ipcMain.handle("get-ip-location", async () => {
+  try {
+    console.log("Getting IP-based location...")
+    const response = await axios.get("http://ip-api.com/json/", {
+      timeout: 10000,
+    })
+    console.log("IP location response:", response.data)
+    return {
+      success: true,
+      latitude: response.data.lat,
+      longitude: response.data.lon,
+      city: response.data.city,
+      region: response.data.regionName,
+      country: response.data.country,
+      accuracy: 10000, // IP location is not very accurate
+      method: "IP-based",
+    }
+  } catch (error) {
+    console.error("IP location error:", error)
     return { success: false, error: error.message }
   }
 })

@@ -68,7 +68,6 @@ export function DataTable({ currentData }: DataTableProps) {
                     const value = currentData[key as keyof SerialData]
                     const unit = label.match(/\(([^)]+)\)/)?.[1] || ""
                     const sensorName = label.replace(/\s*\([^)]+\)/, "")
-                    console.log("💡 Current Data in Table:", currentData)
 
                     return (
                       <TableRow key={key}>
