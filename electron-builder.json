@@ -1,32 +1,5 @@
 {
-  "appId": "com.example.serial-dashboard",
-  "productName": "Serial Dashboard",
-  "directories": {
-    "output": "dist"
-  },
   "files": [
-    "public/**/*",
-    "out/**/*",
-    "node_modules/**/*",
-    "package.json"
-  ],
-  "extraResources": [
-    {
-      "from": "dist/serial_backend",
-      "to": "serial_backend"
-    }
-  ],
-  "asarUnpack": [
-    "public/preload.js"
-  ],
-  "mac": {
-    "target": "dmg",
-    "category": "public.app-category.developer-tools"
-  },
-  "win": {
-    "target": "nsis"
-  },
-  "linux": {
-    "target": "AppImage"
-  }
+    "**/*"
+  ]
 }

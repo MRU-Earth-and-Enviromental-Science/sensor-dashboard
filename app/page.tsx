@@ -32,23 +32,6 @@ interface SerialPort {
   productId?: string
 }
 
-declare global {
-  interface Window {
-    electronAPI: {
-      getSerialPorts: () => Promise<SerialPort[]>
-      connectSerial: (port: string, baudRate: string) => Promise<{ success: boolean; error?: string }>
-      disconnectSerial: () => Promise<{ success: boolean; error?: string }>
-      startLogging: () => Promise<{ success: boolean }>
-      stopLogging: () => Promise<{ success: boolean; dataCount: number }>
-      exportCSV: () => Promise<{ success: boolean; error?: string; filePath?: string }>
-      onSerialData: (callback: (event: any, data: SerialData) => void) => void
-      onSerialStatus: (callback: (event: any, status: { connected: boolean; port?: string }) => void) => void
-      onSerialError: (callback: (event: any, error: string) => void) => void
-      removeAllListeners: (channel: string) => void
-    }
-  }
-}
-
 const sensorLabels = {
   temp: "Temperature (°C)",
   humid: "Humidity (%)",

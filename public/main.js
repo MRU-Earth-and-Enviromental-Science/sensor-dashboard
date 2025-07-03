@@ -58,7 +58,8 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:3000")
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile("out/index.html")
+    mainWindow.loadFile(path.join(__dirname, "out", "index.html"))
+    mainWindow.webContents.openDevTools() // Add this line
   }
 
   mainWindow.once("ready-to-show", () => {
@@ -81,18 +82,27 @@ function startPythonBackend() {
     pythonCmd = 'python3';
     pythonArgs = [path.join(__dirname, '..', 'serial_backend.py')];
   } else {
-    // Use binary in production - look in extraResources
+    // Use binary in production - look in app.asar.unpacked
     const resourcePath = process.platform === 'darwin'
-      ? path.join(process.resourcesPath, 'serial_backend')
-      : path.join(process.resourcesPath, 'serial_backend.exe');
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'serial_backend')
+      : path.join(process.resourcesPath, 'app.asar.unpacked', 'serial_backend.exe');
     pythonCmd = resourcePath;
     pythonArgs = [];
   }
 
   try {
     pythonProcess = spawn(pythonCmd, pythonArgs, {
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
       detached: true
+    });
+    pythonProcess.unref()
+
+    pythonProcess.stdout.on("data", data => {
+      console.log(`PYTHON OUT: ${data.toString()}`);
+    });
+
+    pythonProcess.stderr.on("data", data => {
+      console.error(`PYTHON ERR: ${data.toString()}`);
     });
 
     // Wait a bit for the backend to start

@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { EnvironmentalSensorMapPreview } from "./environmental-sensor-map-preview"
 import { EnvironmentalSensorMapFull } from "./environmental-sensor-map-full"
+import type { LngLatBounds } from "mapbox-gl"
+
 
 interface SerialData {
     timestamp: string
@@ -40,7 +42,7 @@ export function EnvironmentalSensorMapWidget({
     const [isExpanded, setIsExpanded] = useState(false)
     const [isTransitioning, setIsTransitioning] = useState(false)
     const [selectedPollutant, setSelectedPollutant] = useState(defaultPollutant)
-    const [selectedArea, setSelectedArea] = useState(null)
+    const [selectedArea, setSelectedArea] = useState<LngLatBounds | null>(null)
     const [isAreaLocked, setIsAreaLocked] = useState(false)
 
     const handleExpand = () => {
@@ -70,7 +72,8 @@ export function EnvironmentalSensorMapWidget({
                     currentData={currentData}
                     isRealTime={isRealTime}
                     isDarkMode={isDarkMode}
-                    onAreaSelect={setSelectedArea}
+                    // forge.config.js
+
                     onAreaLock={setIsAreaLocked}
                 />
             </div>

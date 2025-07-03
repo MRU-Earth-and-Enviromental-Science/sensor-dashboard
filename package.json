@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "electron-forge start",
     "electron": "electron public/main.js",
     "electron-dev": "ELECTRON_IS_DEV=1 electron public/main.js",
     "build-electron": "next build && node fix-assets.js",
-    "dist": "npm run build-electron && electron-builder --publish never"
+    "dist": "npm run build-electron && electron-forge make",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -48,6 +50,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
+    "electron-squirrel-startup": "^1.0.1",
     "embla-carousel-react": "8.5.1",
     "fs": "latest",
     "input-otp": "1.4.1",
@@ -71,11 +74,19 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.8.1",
+    "@electron-forge/maker-deb": "^7.8.1",
+    "@electron-forge/maker-dmg": "^7.8.1",
+    "@electron-forge/maker-rpm": "^7.8.1",
+    "@electron-forge/maker-squirrel": "^7.8.1",
+    "@electron-forge/maker-zip": "^7.8.1",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
+    "@electron-forge/plugin-fuses": "^7.8.1",
+    "@electron/fuses": "^1.8.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "latest",
-    "electron-builder": "^26.0.12",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

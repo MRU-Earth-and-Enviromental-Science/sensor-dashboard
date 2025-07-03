@@ -175,14 +175,12 @@ export function EnvironmentalSensorMapFull({
                     reject(new Error("Geolocation not supported"))
                     return
                 }
-
                 navigator.geolocation.getCurrentPosition(resolve, reject, {
                     enableHighAccuracy: false, // Network-based (WiFi/cell towers)
                     timeout: 15000, // 15 seconds
                     maximumAge: 300000, // Accept 5-minute-old cache
                 })
             })
-
             console.log("✅ Network geolocation success:", networkLocation)
             const location: UserLocation = {
                 latitude: networkLocation.coords.latitude,
@@ -199,20 +197,27 @@ export function EnvironmentalSensorMapFull({
         // Strategy 2: Try IP-based location
         console.log("🔍 Strategy 2: Trying IP-based location...")
         try {
+            let ipLocation: any = undefined;
             if (window.electronAPI?.getIpLocation) {
-                const ipLocation = await window.electronAPI.getIpLocation()
-                if (ipLocation.success) {
-                    console.log("✅ IP location success:", ipLocation)
-                    const location: UserLocation = {
-                        latitude: ipLocation.latitude,
-                        longitude: ipLocation.longitude,
-                        accuracy: ipLocation.accuracy,
-                    }
-                    setUserLocation(location)
-                    updateMapLocation(location)
-                    setLocationError(`Using approximate location (${ipLocation.city}, ${ipLocation.region})`)
-                    return
-                }
+                ipLocation = await window.electronAPI.getIpLocation();
+            }
+            if (
+                ipLocation &&
+                ipLocation.success &&
+                typeof ipLocation.latitude === "number" &&
+                typeof ipLocation.longitude === "number" &&
+                typeof ipLocation.accuracy === "number"
+            ) {
+                console.log("✅ IP location success:", ipLocation)
+                const location: UserLocation = {
+                    latitude: ipLocation.latitude,
+                    longitude: ipLocation.longitude,
+                    accuracy: ipLocation.accuracy,
+                };
+                setUserLocation(location);
+                updateMapLocation(location);
+                setLocationError(`Using approximate location (${ipLocation.city}, ${ipLocation.region})`);
+                return;
             }
         } catch (ipError) {
             console.log("⚠️ IP location failed:", ipError)
@@ -228,7 +233,6 @@ export function EnvironmentalSensorMapFull({
                     maximumAge: 60000, // Accept 1-minute-old cache
                 })
             })
-
             console.log("✅ GPS location success:", gpsLocation)
             const location: UserLocation = {
                 latitude: gpsLocation.coords.latitude,
@@ -732,7 +736,7 @@ export function EnvironmentalSensorMapFull({
                 features: sensorData.map((point) => ({
                     type: "Feature" as const,
                     properties: {
-                        value: point[pollutant],
+                        value: point[pollutant as keyof SensorData],
                     },
                     geometry: {
                         type: "Point" as const,

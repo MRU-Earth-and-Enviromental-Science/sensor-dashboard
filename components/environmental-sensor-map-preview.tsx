@@ -230,7 +230,7 @@ export function EnvironmentalSensorMapPreview({
             features: sensorData.map((point) => ({
                 type: "Feature" as const,
                 properties: {
-                    value: point[pollutant],
+                    value: point[pollutant as keyof SensorData],
                 },
                 geometry: {
                     type: "Point" as const,
