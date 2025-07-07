@@ -48,7 +48,9 @@ interface DashboardProps {
   onStartLogging: () => void
   onStopLogging: () => void
   onExportCSV: () => void
-  onChartChange: (value: string) => void
+  onChartChange: (chart: string) => void
+  isDataTimeout?: boolean
+  lastDataTime?: number | null
 }
 
 export function Dashboard({
@@ -67,6 +69,8 @@ export function Dashboard({
   onStopLogging,
   onExportCSV,
   onChartChange,
+  isDataTimeout,
+  lastDataTime,
 }: DashboardProps) {
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
 
@@ -113,6 +117,15 @@ export function Dashboard({
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Data Timeout Warning */}
+          {isDataTimeout && (
+            <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+              <AlertDescription className="text-red-800 dark:text-red-200">
+                ⚠️ Warning: No data received for 10+ seconds. Check sensor connection.
+              </AlertDescription>
             </Alert>
           )}
 

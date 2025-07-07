@@ -20,57 +20,63 @@ latest_data = {}
 # Util: parse serial data (replicates JS logic)
 
 
-def parse_serial_data(data):
+def parse_multiline_serial_data(data):
     result = {}
-    clean_data = data.replace('[ESP-NOW] RX', '').strip()
-    parts = clean_data.split()
-    for part in parts:
-        if ':' in part:
+
+    # Split data into lines
+    lines = data.strip().split('\n')
+    for line in lines:
+        # Remove any leading/trailing spaces
+        line = line.strip()
+        # Skip empty lines
+        if not line:
+            continue
+        # Split line by commas
+        parts = line.split(',')
+        for part in parts:
+            if ':' not in part:
+                continue
             key, value = part.split(':', 1)
-            clean_key = key.strip().lower()
-            clean_value = value.strip()
-            if clean_value in ['nan', 'inf', '-inf']:
-                result[clean_key] = None
-            else:
-                try:
-                    num_value = float(clean_value)
-                    result[clean_key] = num_value
-                except ValueError:
-                    result[clean_key] = clean_value
-    # Map keys to frontend expected keys
+            key = key.strip().lower().replace('.', '_').replace(' ', '_')
+            value = value.strip()
+            # Convert value to number if possible
+            try:
+                if '.' in value:
+                    result[key] = float(value)
+                else:
+                    result[key] = int(value)
+            except ValueError:
+                result[key] = value
+
+    # Optional: map keys if needed (e.g., pm1_0 → pm_1_0)
+    key_map = {
+        'temp': 'temp',
+        'humid': 'humid',
+        'ch4': 'ch4',
+        'co2': 'co2',
+        'tvoc': 'tvoc',
+        'co': 'co',
+        'nox': 'nox',
+        'pm1_0': 'pm_1_0',
+        'pm2_5': 'pm_2_5',
+        'pm10_0': 'pm_10_0',
+        'lat': 'lat',
+        'lon': 'lon',
+    }
     mapped = {}
-    if 't' in result:
-        mapped['temp'] = result['t']
-    if 'h' in result:
-        mapped['humid'] = result['h']
-    if 'ch4' in result:
-        mapped['ch4'] = result['ch4']
-    if 'co2' in result:
-        mapped['co2'] = result['co2']
-    if 'tvoc' in result:
-        mapped['tvoc'] = result['tvoc']
-    if 'co' in result:
-        mapped['co'] = result['co']
-    if 'nox' in result:
-        mapped['nox'] = result['nox']
-    if 'pm1.0' in result:
-        mapped['pm_1_0'] = result['pm1.0']
-    if 'pm2.5' in result:
-        mapped['pm_2_5'] = result['pm2.5']
-    if 'pm10.0' in result:
-        mapped['pm_10_0'] = result['pm10.0']
-    if 'lat' in result:
-        mapped['lat'] = result['lat']
-    if 'lon' in result:
-        mapped['lon'] = result['lon']
+    for k, v in result.items():
+        if k in key_map:
+            mapped[key_map[k]] = v
+
     mapped['raw'] = data
     return mapped
-
-# Serial reading thread
 
 
 def serial_read_loop():
     global serial_running, serial_port, is_logging, logged_data, latest_data
+    buffer_lines = []
+    expected_lines_per_block = 3  # Adjust if your data blocks have different length
+
     while serial_running:
         with serial_thread_lock:
             port = serial_port
@@ -79,13 +85,24 @@ def serial_read_loop():
         try:
             line = port.readline().decode(errors='ignore').strip()
             if line:
-                timestamp = datetime.utcnow().isoformat()
-                parsed = parse_serial_data(line)
-                data_point = {'timestamp': timestamp, 'raw': line, **parsed}
-                latest_data = data_point  # Save latest data for polling
-                if is_logging:
-                    logged_data.append(data_point)
+                buffer_lines.append(line)
+
+                if len(buffer_lines) >= expected_lines_per_block:
+                    full_data = '\n'.join(buffer_lines)
+                    timestamp = datetime.utcnow().isoformat()
+                    parsed = parse_multiline_serial_data(full_data)
+                    data_point = {
+                        'timestamp': timestamp,
+                        'raw': full_data,
+                        **parsed,
+                        'last_update': time.time()
+                    }
+                    latest_data = data_point
+                    if is_logging:
+                        logged_data.append(data_point)
+                    buffer_lines = []  # Clear buffer for next block
         except Exception as e:
+            print(f"Serial read error: {e}")
             break
         time.sleep(0.01)
     print("Serial read thread exited.")

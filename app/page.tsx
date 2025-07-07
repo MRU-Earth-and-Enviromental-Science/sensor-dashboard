@@ -85,6 +85,11 @@ export default function SerialDashboard() {
   const [showDisconnectAnimation, setShowDisconnectAnimation] = useState(false)
   const [hasError, setHasError] = useState(false)
 
+  // Add new state for data timeout tracking
+  const [lastDataTime, setLastDataTime] = useState<number | null>(null)
+  const [isDataTimeout, setIsDataTimeout] = useState(false)
+  const dataTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Refs to maintain rolling window for preview (exactly 50 points)
   const previewDataBuffers = useRef<Record<string, any[]>>({})
 
@@ -138,6 +143,41 @@ export default function SerialDashboard() {
     }
   }, [])
 
+  // Add useEffect to monitor data timeout
+  useEffect(() => {
+    if (!isConnected) {
+      setIsDataTimeout(false)
+      setLastDataTime(null)
+      if (dataTimeoutRef.current) {
+        clearTimeout(dataTimeoutRef.current)
+        dataTimeoutRef.current = null
+      }
+      return
+    }
+
+    // If we have a last data time, start monitoring for timeout
+    if (lastDataTime) {
+      // Clear any existing timeout
+      if (dataTimeoutRef.current) {
+        clearTimeout(dataTimeoutRef.current)
+      }
+
+      // Set a new timeout for 10 seconds
+      dataTimeoutRef.current = setTimeout(() => {
+        console.log("⚠️ Data timeout detected - no data received for 10 seconds")
+        setIsDataTimeout(true)
+        setError("No data received for 10 seconds. Check sensor connection.")
+      }, 10000)
+    }
+
+    return () => {
+      if (dataTimeoutRef.current) {
+        clearTimeout(dataTimeoutRef.current)
+        dataTimeoutRef.current = null
+      }
+    }
+  }, [lastDataTime, isConnected])
+
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode)
     if (!isDarkMode) {
@@ -166,6 +206,16 @@ export default function SerialDashboard() {
     loadPorts()
 
     const handleSerialData = (event: any, data: SerialData) => {
+      // Update last data time and clear timeout error
+      const now = Date.now()
+      setLastDataTime(now)
+      setIsDataTimeout(false)
+
+      // Clear any existing error if we were in timeout state
+      if (isDataTimeout) {
+        setError("")
+      }
+
       setCurrentData(data)
       setRecentData((prev) => [data, ...prev.slice(0, 99)])
 
@@ -212,6 +262,11 @@ export default function SerialDashboard() {
     const handleSerialStatus = (event: any, status: { connected: boolean; port?: string }) => {
       setIsConnected(status.connected)
       if (status.connected && !showDashboard) {
+        // Start monitoring for data when connected
+        setLastDataTime(Date.now())
+        setIsDataTimeout(false)
+        setError("")
+
         // Trigger slide animation when first connected
         setShowAnimation(true)
         setTimeout(() => {
@@ -220,6 +275,14 @@ export default function SerialDashboard() {
         }, 800)
       }
       if (!status.connected) {
+        // Clear timeout monitoring when disconnected
+        setLastDataTime(null)
+        setIsDataTimeout(false)
+        if (dataTimeoutRef.current) {
+          clearTimeout(dataTimeoutRef.current)
+          dataTimeoutRef.current = null
+        }
+
         setIsLogging(false)
         setLoggedCount(0)
         setShowDashboard(false)
@@ -232,6 +295,7 @@ export default function SerialDashboard() {
 
     const handleSerialError = (event: any, errorMsg: string) => {
       setError(errorMsg)
+      setIsDataTimeout(false) // Clear timeout error when other errors occur
     }
 
     window.electronAPI.onSerialData(handleSerialData)
@@ -239,11 +303,15 @@ export default function SerialDashboard() {
     window.electronAPI.onSerialError(handleSerialError)
 
     return () => {
+      if (dataTimeoutRef.current) {
+        clearTimeout(dataTimeoutRef.current)
+        dataTimeoutRef.current = null
+      }
       window.electronAPI.removeAllListeners("serial-data")
       window.electronAPI.removeAllListeners("serial-status")
       window.electronAPI.removeAllListeners("serial-error")
     }
-  }, [isElectron, isLogging, selectedChart, showDashboard])
+  }, [isElectron, isLogging, selectedChart, showDashboard, isDataTimeout])
 
   // Update preview chart when selected chart changes
   useEffect(() => {
@@ -386,6 +454,8 @@ export default function SerialDashboard() {
         onStopLogging={handleStopLogging}
         onExportCSV={handleExportCSV}
         onChartChange={(value) => setSelectedChart(value as keyof typeof sensorLabels)}
+        isDataTimeout={isDataTimeout}
+        lastDataTime={lastDataTime}
       />
     )
   }
