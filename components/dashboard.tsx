@@ -120,11 +120,22 @@ export function Dashboard({
             </Alert>
           )}
 
+          {/* ESP Disconnected Warning - Prominent Floating Alert */}
+          {isDataTimeout && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-pulse">
+              <Alert variant="destructive" className="bg-red-600 border-red-700 shadow-2xl min-w-96">
+                <AlertDescription className="text-white font-semibold text-center">
+                  🚨 ESP Disconnected - Check connections and sensor power
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
           {/* Data Timeout Warning */}
           {isDataTimeout && (
             <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
               <AlertDescription className="text-red-800 dark:text-red-200">
-                ⚠️ Warning: No data received for 10+ seconds. Check sensor connection.
+                ⚠️ Warning: No data received for 20+ seconds. Check ESP and sensor connections.
               </AlertDescription>
             </Alert>
           )}

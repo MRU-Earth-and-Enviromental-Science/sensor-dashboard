@@ -18,9 +18,6 @@ function createWindow() {
     preloadPath = path.join(process.resourcesPath, "app.asar.unpacked", "public", "preload.js")
   }
 
-  console.log("Preload path:", preloadPath)
-  console.log("__dirname:", __dirname)
-
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -189,5 +186,14 @@ ipcMain.handle('export-csv', async () => {
     return { success: true, filePath: result.filePath }
   } catch (error) {
     return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-logged-count', async () => {
+  try {
+    const res = await axios.get('http://127.0.0.1:5001/serial/log/count')
+    return res.data
+  } catch (error) {
+    return { count: 0, isLogging: false }
   }
 })

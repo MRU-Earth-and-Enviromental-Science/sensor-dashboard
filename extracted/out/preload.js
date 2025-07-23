@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   startLogging: () => ipcRenderer.invoke("start-logging"),
   stopLogging: () => ipcRenderer.invoke("stop-logging"),
   exportCSV: () => ipcRenderer.invoke("export-csv"),
+  getLoggedCount: () => ipcRenderer.invoke("get-logged-count"),
 
   onSerialData: (callback) => ipcRenderer.on("serial-data", callback),
   onSerialStatus: (callback) => ipcRenderer.on("serial-status", callback),

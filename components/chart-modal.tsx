@@ -395,6 +395,9 @@ export function ChartModal({ isOpen, onClose, allChartData, selectedChart, onCha
                         strokeWidth={2}
                         dot={false}
                         name={sensorLabels[selectedChart as keyof typeof sensorLabels]}
+                        // Optimize line rendering for incremental updates
+                        isAnimationActive={true}
+                        animationDuration={300}
                         connectNulls={false}
                       />
                     </LineChart>

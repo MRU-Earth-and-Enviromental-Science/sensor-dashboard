@@ -100,12 +100,10 @@ def serial_read_loop():
                     latest_data = data_point
                     if is_logging:
                         logged_data.append(data_point)
-                    buffer_lines = []  # Clear buffer for next block
+                        buffer_lines = []  # Clear buffer for next block
         except Exception as e:
-            print(f"Serial read error: {e}")
             break
         time.sleep(0.01)
-    print("Serial read thread exited.")
 
 
 @app.route('/serial/ports', methods=['GET'])
@@ -120,7 +118,6 @@ def connect_serial():
     data = request.json
     port = data.get('port')
     baudrate = int(data.get('baudrate', 9600))
-    print(f"Trying to open port: {port} at {baudrate} baud")
     try:
         do_disconnect()  # Use helper, not Flask route
         with serial_thread_lock:
@@ -128,10 +125,8 @@ def connect_serial():
         serial_running = True
         serial_thread = threading.Thread(target=serial_read_loop, daemon=True)
         serial_thread.start()
-        print("Serial port opened successfully. connect button pressed")
         return jsonify({'success': True})
     except Exception as e:
-        print(f"Failed to open serial port: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -171,6 +166,11 @@ def export_csv():
 @app.route('/serial/log/data', methods=['GET'])
 def get_logged_data():
     return jsonify(logged_data)
+
+
+@app.route('/serial/log/count', methods=['GET'])
+def get_logged_count():
+    return jsonify({'count': len(logged_data), 'isLogging': is_logging})
 
 
 @app.route('/serial/latest', methods=['GET'])

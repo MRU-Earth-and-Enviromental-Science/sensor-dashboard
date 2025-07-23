@@ -41,6 +41,7 @@ declare global {
       startLogging: () => Promise<{ success: boolean }>
       stopLogging: () => Promise<{ success: boolean; dataCount: number }>
       exportCSV: () => Promise<{ success: boolean; error?: string; filePath?: string }>
+      getLoggedCount: () => Promise<{ count: number; isLogging: boolean }>
       onSerialData: (callback: (event: any, data: SerialData) => void) => void
       onSerialStatus: (callback: (event: any, status: { connected: boolean; port?: string }) => void) => void
       onSerialError: (callback: (event: any, error: string) => void) => void
@@ -95,18 +96,12 @@ export default function SerialDashboard() {
 
   useEffect(() => {
     try {
-      console.log("Checking for Electron environment...")
-      console.log("window.electronAPI:", window.electronAPI)
-      console.log("typeof window.electronAPI:", typeof window.electronAPI)
-
       const checkElectron = () => {
         try {
           const hasElectron = typeof window !== "undefined" && window.electronAPI !== undefined
-          console.log("Electron detected:", hasElectron)
           setIsElectron(hasElectron)
           return hasElectron
         } catch (error) {
-          console.error("Error checking Electron:", error)
           setIsElectron(false)
           return false
         }
@@ -120,12 +115,10 @@ export default function SerialDashboard() {
         const checkInterval = setInterval(() => {
           try {
             retries++
-            console.log(`Retry ${retries}/${maxRetries} for Electron detection`)
             if (checkElectron() || retries >= maxRetries) {
               clearInterval(checkInterval)
             }
           } catch (error) {
-            console.error("Error in retry:", error)
             clearInterval(checkInterval)
           }
         }, 500)
@@ -138,10 +131,42 @@ export default function SerialDashboard() {
         document.documentElement.classList.add("dark")
       }
     } catch (error) {
-      console.error("Error in useEffect:", error)
       setIsElectron(false)
     }
   }, [])
+
+  // Add periodic sync of logged count from backend
+  useEffect(() => {
+    if (!isElectron || !isConnected) return
+
+    const syncLoggedCount = async () => {
+      try {
+        let result;
+        if (
+          typeof window !== "undefined" &&
+          window.electronAPI &&
+          typeof window.electronAPI.getLoggedCount === "function"
+        ) {
+          result = await window.electronAPI.getLoggedCount()
+          setLoggedCount(result.count)
+        } else {
+          result = { count: 0, isLogging: false }
+        }
+        // Also sync the logging state to ensure consistency
+        setIsLogging(result.isLogging)
+      } catch (error) {
+        // Silently handle sync errors
+      }
+    }
+
+    // Sync every 2 seconds when connected
+    const syncInterval = setInterval(syncLoggedCount, 2000)
+
+    // Sync immediately
+    syncLoggedCount()
+
+    return () => clearInterval(syncInterval)
+  }, [isElectron, isConnected])
 
   // Add useEffect to monitor data timeout
   useEffect(() => {
@@ -155,19 +180,15 @@ export default function SerialDashboard() {
       return
     }
 
-    // If we have a last data time, start monitoring for timeout
     if (lastDataTime) {
-      // Clear any existing timeout
       if (dataTimeoutRef.current) {
         clearTimeout(dataTimeoutRef.current)
       }
 
-      // Set a new timeout for 10 seconds
       dataTimeoutRef.current = setTimeout(() => {
-        console.log("⚠️ Data timeout detected - no data received for 10 seconds")
         setIsDataTimeout(true)
-        setError("No data received for 10 seconds. Check sensor connection.")
-      }, 10000)
+        setError("ESP Disconnected - Check connections and sensor power")
+      }, 20000)
     }
 
     return () => {
@@ -206,12 +227,10 @@ export default function SerialDashboard() {
     loadPorts()
 
     const handleSerialData = (event: any, data: SerialData) => {
-      // Update last data time and clear timeout error
       const now = Date.now()
       setLastDataTime(now)
       setIsDataTimeout(false)
 
-      // Clear any existing error if we were in timeout state
       if (isDataTimeout) {
         setError("")
       }
@@ -254,9 +273,7 @@ export default function SerialDashboard() {
         setPreviewChartData([...previewDataBuffers.current[selectedChart]])
       }
 
-      if (isLogging) {
-        setLoggedCount((prev) => prev + 1)
-      }
+      // Note: logged count is now synced automatically via useEffect, not manually incremented
     }
 
     const handleSerialStatus = (event: any, status: { connected: boolean; port?: string }) => {
@@ -365,7 +382,7 @@ export default function SerialDashboard() {
       const result = await window.electronAPI.startLogging()
       if (result.success) {
         setIsLogging(true)
-        setLoggedCount(0)
+        // Count will be synced automatically via the useEffect
       }
     } catch (err) {
       setError("Failed to start logging")
