@@ -13,18 +13,7 @@ import { Footer } from "./footer"
 
 interface SerialData {
   timestamp: string
-  temp?: number
-  humid?: number
-  ch4?: number
-  co2?: number
-  tvoc?: number
-  co?: number
-  nox?: number
-  pm_1_0?: number
-  pm_2_5?: number
-  pm_10_0?: number
-  lat?: number
-  lon?: number
+  resistance?: number
 }
 
 interface ChartData {
@@ -81,9 +70,9 @@ export function Dashboard({
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold">Environmental Sensor Dashboard</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold">Resistance Monitoring Dashboard</h1>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Real-time monitoring of air quality and environmental data
+                Real-time monitoring of resistance data from ESP32
               </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">

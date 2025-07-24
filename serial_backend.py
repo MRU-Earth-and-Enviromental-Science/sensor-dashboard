@@ -17,65 +17,32 @@ logged_data = []
 serial_thread_lock = threading.Lock()
 latest_data = {}
 
-# Util: parse serial data (replicates JS logic)
+# Util: parse resistance data from Arduino
 
 
-def parse_multiline_serial_data(data):
-    result = {}
+def parse_resistance_data(data):
+    """Parse resistance value from ESP-NOW formatted output"""
+    try:
+        # Handle ESP-NOW format: "[ESP-NOW] Resistance from CC:7B:5C:97:46:7C: 32924.53 ohms"
+        if "Resistance from" in data and "ohms" in data:
+            # Extract the number between the colon and "ohms"
+            parts = data.split(":")
+            if len(parts) >= 2:
+                # Get the part after the last colon and before "ohms"
+                resistance_part = parts[-1].replace("ohms", "").strip()
+                resistance_value = float(resistance_part)
+                return {'resistance': resistance_value}
 
-    # Split data into lines
-    lines = data.strip().split('\n')
-    for line in lines:
-        # Remove any leading/trailing spaces
-        line = line.strip()
-        # Skip empty lines
-        if not line:
-            continue
-        # Split line by commas
-        parts = line.split(',')
-        for part in parts:
-            if ':' not in part:
-                continue
-            key, value = part.split(':', 1)
-            key = key.strip().lower().replace('.', '_').replace(' ', '_')
-            value = value.strip()
-            # Convert value to number if possible
-            try:
-                if '.' in value:
-                    result[key] = float(value)
-                else:
-                    result[key] = int(value)
-            except ValueError:
-                result[key] = value
-
-    # Optional: map keys if needed (e.g., pm1_0 → pm_1_0)
-    key_map = {
-        'temp': 'temp',
-        'humid': 'humid',
-        'ch4': 'ch4',
-        'co2': 'co2',
-        'tvoc': 'tvoc',
-        'co': 'co',
-        'nox': 'nox',
-        'pm1_0': 'pm_1_0',
-        'pm2_5': 'pm_2_5',
-        'pm10_0': 'pm_10_0',
-        'lat': 'lat',
-        'lon': 'lon',
-    }
-    mapped = {}
-    for k, v in result.items():
-        if k in key_map:
-            mapped[key_map[k]] = v
-
-    mapped['raw'] = data
-    return mapped
+        # Fallback: try to parse as simple float (for backward compatibility)
+        resistance_value = float(data.strip())
+        return {'resistance': resistance_value}
+    except ValueError:
+        # If parsing fails, return None
+        return None
 
 
 def serial_read_loop():
     global serial_running, serial_port, is_logging, logged_data, latest_data
-    buffer_lines = []
-    expected_lines_per_block = 3  # Adjust if your data blocks have different length
 
     while serial_running:
         with serial_thread_lock:
@@ -85,22 +52,24 @@ def serial_read_loop():
         try:
             line = port.readline().decode(errors='ignore').strip()
             if line:
-                buffer_lines.append(line)
-
-                if len(buffer_lines) >= expected_lines_per_block:
-                    full_data = '\n'.join(buffer_lines)
+                print(f"Raw incoming data: {line}")
+                # Parse resistance value from each line
+                parsed = parse_resistance_data(line)
+                if parsed:  # Only process if parsing was successful
+                    print(f"Parsed data: {parsed}")
                     timestamp = datetime.utcnow().isoformat()
-                    parsed = parse_multiline_serial_data(full_data)
                     data_point = {
                         'timestamp': timestamp,
-                        'raw': full_data,
+                        'raw': line,
                         **parsed,
                         'last_update': time.time()
                     }
+                    print(f"Data point created: {data_point}")
                     latest_data = data_point
                     if is_logging:
                         logged_data.append(data_point)
-                        buffer_lines = []  # Clear buffer for next block
+                else:
+                    print(f"Failed to parse data: {line}")
         except Exception as e:
             break
         time.sleep(0.01)

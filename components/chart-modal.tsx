@@ -21,30 +21,12 @@ interface ChartModalProps {
 }
 
 const sensorLabels = {
-  temp: "Temperature (°C)",
-  humid: "Humidity (%)",
-  ch4: "CH4 (ppm)",
-  co2: "CO2 (ppm)",
-  tvoc: "TVOC (ppb)",
-  co: "CO (ppm)",
-  nox: "NOx (ppm)",
-  pm_1_0: "PM1.0 (μg/m³)",
-  pm_2_5: "PM2.5 (μg/m³)",
-  pm_10_0: "PM10.0 (μg/m³)",
+  resistance: "Resistance (Ω)",
 }
 
-// Define colors for each sensor (same as real-time chart)
+// Define colors for resistance sensor
 const sensorColors = {
-  temp: "#0080FF", // Electric blue
-  humid: "#FF6B35", // Orange
-  ch4: "#FF1744", // Red
-  co2: "#4CAF50", // Green
-  tvoc: "#FFEB3B", // Yellow
-  co: "#795548", // Brown
-  nox: "#9C27B0", // Purple
-  pm_1_0: "#607D8B", // Blue grey
-  pm_2_5: "#E91E63", // Pink
-  pm_10_0: "#00BCD4", // Cyan
+  resistance: "#0080FF", // Electric blue
 }
 
 const graphableFields = Object.keys(sensorLabels) as (keyof typeof sensorLabels)[]

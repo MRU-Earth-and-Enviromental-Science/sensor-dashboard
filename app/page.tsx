@@ -10,18 +10,7 @@ import { Dashboard } from "@/components/dashboard"
 interface SerialData {
   timestamp: string
   raw: string
-  temp?: number
-  humid?: number
-  ch4?: number
-  co2?: number
-  tvoc?: number
-  co?: number
-  nox?: number
-  pm_1_0?: number
-  pm_2_5?: number
-  pm_10_0?: number
-  lat?: number
-  lon?: number
+  resistance?: number
 }
 
 interface SerialPort {
@@ -51,16 +40,7 @@ declare global {
 }
 
 const sensorLabels = {
-  temp: "Temperature (°C)",
-  humid: "Humidity (%)",
-  ch4: "CH4 (ppm)",
-  co2: "CO2 (ppm)",
-  tvoc: "TVOC (ppb)",
-  co: "CO (ppm)",
-  nox: "NOx (ppm)",
-  pm_1_0: "PM1.0 (μg/m³)",
-  pm_2_5: "PM2.5 (μg/m³)",
-  pm_10_0: "PM10.0 (μg/m³)",
+  resistance: "Resistance (Ω)",
 }
 
 export default function SerialDashboard() {
@@ -76,7 +56,7 @@ export default function SerialDashboard() {
   const [previewChartData, setPreviewChartData] = useState<any[]>([])
   const [fullHistoryData, setFullHistoryData] = useState<Record<string, any[]>>({})
 
-  const [selectedChart, setSelectedChart] = useState<keyof typeof sensorLabels>("temp")
+  const [selectedChart, setSelectedChart] = useState<keyof typeof sensorLabels>("resistance")
   const [loggedCount, setLoggedCount] = useState(0)
   const [error, setError] = useState<string>("")
   const [isElectron, setIsElectron] = useState(false)
@@ -238,39 +218,32 @@ export default function SerialDashboard() {
       setCurrentData(data)
       setRecentData((prev) => [data, ...prev.slice(0, 99)])
 
-      // Process each sensor's data
-      Object.keys(sensorLabels).forEach((sensor) => {
-        const sensorKey = sensor as keyof typeof sensorLabels
-        const sensorValue = data[sensorKey]
-
-        if (sensorValue !== undefined && sensorValue !== null) {
-          const dataPoint = {
-            timestamp: new Date(data.timestamp).toLocaleTimeString(),
-            value: sensorValue === -1 ? previewDataBuffers.current[sensor]?.slice(-1)[0]?.value || 0 : sensorValue,
-            fullTimestamp: data.timestamp,
-          }
-
-          // Update preview buffer (rolling window of exactly 50 points)
-          if (!previewDataBuffers.current[sensor]) {
-            previewDataBuffers.current[sensor] = []
-          }
-
-          previewDataBuffers.current[sensor] = [
-            ...previewDataBuffers.current[sensor].slice(-49), // Keep last 49 points
-            dataPoint, // Add new point (total = 50)
-          ]
-
-          // Update full history (unlimited)
-          setFullHistoryData((prev) => ({
-            ...prev,
-            [sensor]: [...(prev[sensor] || []), dataPoint],
-          }))
+      // Process resistance data
+      if (data.resistance !== undefined && data.resistance !== null) {
+        const dataPoint = {
+          timestamp: new Date(data.timestamp).toLocaleTimeString(),
+          value: data.resistance,
+          fullTimestamp: data.timestamp,
         }
-      })
 
-      // Update preview chart data for currently selected sensor
-      if (previewDataBuffers.current[selectedChart]) {
-        setPreviewChartData([...previewDataBuffers.current[selectedChart]])
+        // Update preview buffer (rolling window of exactly 50 points)
+        if (!previewDataBuffers.current["resistance"]) {
+          previewDataBuffers.current["resistance"] = []
+        }
+
+        previewDataBuffers.current["resistance"] = [
+          ...previewDataBuffers.current["resistance"].slice(-49), // Keep last 49 points
+          dataPoint, // Add new point (total = 50)
+        ]
+
+        // Update full history (unlimited)
+        setFullHistoryData((prev) => ({
+          ...prev,
+          resistance: [...(prev.resistance || []), dataPoint],
+        }))
+
+        // Update preview chart data for resistance
+        setPreviewChartData([...previewDataBuffers.current["resistance"]])
       }
 
       // Note: logged count is now synced automatically via useEffect, not manually incremented
