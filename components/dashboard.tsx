@@ -14,6 +14,8 @@ import { Footer } from "./footer"
 interface SerialData {
   timestamp: string
   resistance?: number
+  temperature?: number
+  humidity?: number
 }
 
 interface ChartData {
@@ -70,9 +72,9 @@ export function Dashboard({
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold">Resistance Monitoring Dashboard</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold">Sensor Monitoring Dashboard</h1>
               <p className="text-muted-foreground text-sm sm:text-base">
-                Real-time monitoring of resistance data from ESP32
+                Real-time monitoring of resistance and temperature data from ESP32
               </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">

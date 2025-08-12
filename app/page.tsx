@@ -11,6 +11,8 @@ interface SerialData {
   timestamp: string
   raw: string
   resistance?: number
+  temperature?: number
+  humidity?: number
 }
 
 interface SerialPort {
@@ -41,6 +43,8 @@ declare global {
 
 const sensorLabels = {
   resistance: "Resistance (Ω)",
+  temperature: "Temperature (°C)",
+  humidity: "Humidity (%)",
 }
 
 export default function SerialDashboard() {
@@ -242,8 +246,70 @@ export default function SerialDashboard() {
           resistance: [...(prev.resistance || []), dataPoint],
         }))
 
-        // Update preview chart data for resistance
-        setPreviewChartData([...previewDataBuffers.current["resistance"]])
+        // Update preview chart data for resistance if it's the selected sensor
+        if (selectedChart === "resistance") {
+          setPreviewChartData([...previewDataBuffers.current["resistance"]])
+        }
+      }
+
+      // Process temperature data
+      if (data.temperature !== undefined && data.temperature !== null) {
+        const dataPoint = {
+          timestamp: new Date(data.timestamp).toLocaleTimeString(),
+          value: data.temperature,
+          fullTimestamp: data.timestamp,
+        }
+
+        // Update preview buffer (rolling window of exactly 50 points)
+        if (!previewDataBuffers.current["temperature"]) {
+          previewDataBuffers.current["temperature"] = []
+        }
+
+        previewDataBuffers.current["temperature"] = [
+          ...previewDataBuffers.current["temperature"].slice(-49), // Keep last 49 points
+          dataPoint, // Add new point (total = 50)
+        ]
+
+        // Update full history (unlimited)
+        setFullHistoryData((prev) => ({
+          ...prev,
+          temperature: [...(prev.temperature || []), dataPoint],
+        }))
+
+        // Update preview chart data for temperature if it's the selected sensor
+        if (selectedChart === "temperature") {
+          setPreviewChartData([...previewDataBuffers.current["temperature"]])
+        }
+      }
+
+      // Process humidity data
+      if (data.humidity !== undefined && data.humidity !== null) {
+        const dataPoint = {
+          timestamp: new Date(data.timestamp).toLocaleTimeString(),
+          value: data.humidity,
+          fullTimestamp: data.timestamp,
+        }
+
+        // Update preview buffer (rolling window of exactly 50 points)
+        if (!previewDataBuffers.current["humidity"]) {
+          previewDataBuffers.current["humidity"] = []
+        }
+
+        previewDataBuffers.current["humidity"] = [
+          ...previewDataBuffers.current["humidity"].slice(-49), // Keep last 49 points
+          dataPoint, // Add new point (total = 50)
+        ]
+
+        // Update full history (unlimited)
+        setFullHistoryData((prev) => ({
+          ...prev,
+          humidity: [...(prev.humidity || []), dataPoint],
+        }))
+
+        // Update preview chart data for humidity if it's the selected sensor
+        if (selectedChart === "humidity") {
+          setPreviewChartData([...previewDataBuffers.current["humidity"]])
+        }
       }
 
       // Note: logged count is now synced automatically via useEffect, not manually incremented

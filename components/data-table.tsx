@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 interface SerialData {
   timestamp: string
   resistance?: number
+  temperature?: number
+  humidity?: number
 }
 
 interface DataTableProps {
@@ -16,6 +18,8 @@ interface DataTableProps {
 
 const sensorLabels = {
   resistance: "Resistance (Ω)",
+  temperature: "Temperature (°C)",
+  humidity: "Humidity (%)",
 }
 
 export function DataTable({ currentData }: DataTableProps) {
@@ -26,7 +30,7 @@ export function DataTable({ currentData }: DataTableProps) {
   // Only update display data when we receive new data (different timestamp)
   useEffect(() => {
     if (currentData && currentData.timestamp !== lastTimestampRef.current) {
-      // For resistance data, we simply use the current data
+      // For sensor data, we simply use the current data
       const mergedData = { ...currentData }
 
       // Update last known values with new data
@@ -40,6 +44,26 @@ export function DataTable({ currentData }: DataTableProps) {
         (mergedData as any).resistance = lastKnownValues.resistance
       }
 
+      if (currentData.temperature !== undefined && currentData.temperature !== null) {
+        setLastKnownValues(prev => ({
+          ...prev,
+          temperature: currentData.temperature
+        }))
+      } else if (lastKnownValues.temperature !== undefined) {
+        // Use last known temperature if current data doesn't have it
+        (mergedData as any).temperature = lastKnownValues.temperature
+      }
+
+      if (currentData.humidity !== undefined && currentData.humidity !== null) {
+        setLastKnownValues(prev => ({
+          ...prev,
+          humidity: currentData.humidity
+        }))
+      } else if (lastKnownValues.humidity !== undefined) {
+        // Use last known humidity if current data doesn't have it
+        (mergedData as any).humidity = lastKnownValues.humidity
+      }
+
       setDisplayData(mergedData)
       lastTimestampRef.current = currentData.timestamp
     }
@@ -48,8 +72,8 @@ export function DataTable({ currentData }: DataTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Live Resistance Data</CardTitle>
-        <CardDescription>Current resistance readings from ESP32</CardDescription>
+        <CardTitle>Live Sensor Data</CardTitle>
+        <CardDescription>Current resistance and temperature readings from ESP32</CardDescription>
       </CardHeader>
       <CardContent>
         {displayData ? (

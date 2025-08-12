@@ -17,25 +17,76 @@ logged_data = []
 serial_thread_lock = threading.Lock()
 latest_data = {}
 
-# Util: parse resistance data from Arduino
+# Util: parse sensor data from Arduino
 
 
-def parse_resistance_data(data):
-    """Parse resistance value from ESP-NOW formatted output"""
+def parse_sensor_data(data):
+    """Parse sensor values from ESP-NOW formatted output"""
     try:
-        # Handle ESP-NOW format: "[ESP-NOW] Resistance from CC:7B:5C:97:46:7C: 32924.53 ohms"
-        if "Resistance from" in data and "ohms" in data:
-            # Extract the number between the colon and "ohms"
+        result = {}
+
+        # Handle new ESP-NOW format: "[ESP-NOW] Data from CC:7B:5C:97:46:7C: Rs=96852.27 ohms, Temp=27.80°C, Humidity=40.00%"
+        if "Data from" in data and ("Rs=" in data or "Temp=" in data):
+            # Split by comma to get individual sensor values
+            parts = data.split(",")
+            for part in parts:
+                part = part.strip()
+                if "Rs=" in part and "ohms" in part:
+                    # Extract resistance value
+                    resistance_part = part.split(
+                        "Rs=")[1].replace("ohms", "").strip()
+                    result['resistance'] = float(resistance_part)
+                elif "Temp=" in part and "°C" in part:
+                    # Extract temperature value
+                    temp_part = part.split(
+                        "Temp=")[1].replace("°C", "").strip()
+                    result['temperature'] = float(temp_part)
+                elif "Humidity=" in part and "%" in part:
+                    # Extract humidity value
+                    humidity_part = part.split("Humidity=")[
+                        1].replace("%", "").strip()
+                    result['humidity'] = float(humidity_part)
+
+        # Handle ESP-NOW format for resistance: "[ESP-NOW] Resistance from CC:7B:5C:97:46:7C: 32924.53 ohms"
+        elif "Resistance from" in data and "ohms" in data:
             parts = data.split(":")
             if len(parts) >= 2:
-                # Get the part after the last colon and before "ohms"
                 resistance_part = parts[-1].replace("ohms", "").strip()
                 resistance_value = float(resistance_part)
-                return {'resistance': resistance_value}
+                result['resistance'] = resistance_value
+
+        # Handle ESP-NOW format for temperature: "[ESP-NOW] Temperature from CC:7B:5C:97:46:7C: 25.4 °C"
+        elif "Temperature from" in data and "°C" in data:
+            parts = data.split(":")
+            if len(parts) >= 2:
+                temp_part = parts[-1].replace("°C", "").strip()
+                temp_value = float(temp_part)
+                result['temperature'] = temp_value
+
+        # Handle combined data format: "Resistance: 32924.53 ohms, Temperature: 25.4 °C"
+        elif "Resistance:" in data and "Temperature:" in data:
+            # Split by comma to get both values
+            parts = data.split(",")
+            for part in parts:
+                part = part.strip()
+                if "Resistance:" in part and "ohms" in part:
+                    resistance_part = part.split(
+                        ":")[1].replace("ohms", "").strip()
+                    result['resistance'] = float(resistance_part)
+                elif "Temperature:" in part and "°C" in part:
+                    temp_part = part.split(":")[1].replace("°C", "").strip()
+                    result['temperature'] = float(temp_part)
 
         # Fallback: try to parse as simple float (for backward compatibility)
-        resistance_value = float(data.strip())
-        return {'resistance': resistance_value}
+        else:
+            try:
+                value = float(data.strip())
+                # Default to resistance for backward compatibility
+                result['resistance'] = value
+            except ValueError:
+                pass
+
+        return result if result else None
     except ValueError:
         # If parsing fails, return None
         return None
@@ -53,8 +104,8 @@ def serial_read_loop():
             line = port.readline().decode(errors='ignore').strip()
             if line:
                 print(f"Raw incoming data: {line}")
-                # Parse resistance value from each line
-                parsed = parse_resistance_data(line)
+                # Parse sensor data from each line
+                parsed = parse_sensor_data(line)
                 if parsed:  # Only process if parsing was successful
                     print(f"Parsed data: {parsed}")
                     timestamp = datetime.utcnow().isoformat()

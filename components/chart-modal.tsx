@@ -22,11 +22,15 @@ interface ChartModalProps {
 
 const sensorLabels = {
   resistance: "Resistance (Ω)",
+  temperature: "Temperature (°C)",
+  humidity: "Humidity (%)",
 }
 
-// Define colors for resistance sensor
+// Define colors for sensors
 const sensorColors = {
   resistance: "#0080FF", // Electric blue
+  temperature: "#FF6B35", // Orange-red
+  humidity: "#10B981", // Green
 }
 
 const graphableFields = Object.keys(sensorLabels) as (keyof typeof sensorLabels)[]
