@@ -6,6 +6,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 import serial
 import serial.tools.list_ports
+import re
 
 app = Flask(__name__)
 
@@ -21,74 +22,69 @@ latest_data = {}
 
 
 def parse_sensor_data(data):
-    """Parse sensor values from ESP-NOW formatted output"""
+    """Robustly parse sensor values from various Arduino/ESP-NOW formatted outputs.
+
+    Supported examples:
+      - [ESP-NOW] Data from CC:...: Rs=96852.27 ohms, Temp=27.80°C, Humidity=40.00%
+      - [ESP-NOW] Full data from ...: Rs=..., Temp=... C, Hum=... %
+      - [ESP-NOW] Temp/Hum from ...: 25.4 C, 40.0 %
+      - [ESP-NOW] Resistance (legacy) from ...: 32924.53
+      - Plain numeric: 32924.53
+    Returns a dict with any of keys: 'resistance', 'temperature', 'humidity' or None if nothing found.
+    """
     try:
+        if not data:
+            return None
+        s = data.strip()
+        # Quick ignore for non-data status lines
+        low = s.lower()
+        if "waiting for esp-now" in low or "waiting for" in low or "unknown data size" in low:
+            return None
+
         result = {}
 
-        # Handle new ESP-NOW format: "[ESP-NOW] Data from CC:7B:5C:97:46:7C: Rs=96852.27 ohms, Temp=27.80°C, Humidity=40.00%"
-        if "Data from" in data and ("Rs=" in data or "Temp=" in data):
-            # Split by comma to get individual sensor values
-            parts = data.split(",")
-            for part in parts:
-                part = part.strip()
-                if "Rs=" in part and "ohms" in part:
-                    # Extract resistance value
-                    resistance_part = part.split(
-                        "Rs=")[1].replace("ohms", "").strip()
-                    result['resistance'] = float(resistance_part)
-                elif "Temp=" in part and "°C" in part:
-                    # Extract temperature value
-                    temp_part = part.split(
-                        "Temp=")[1].replace("°C", "").strip()
-                    result['temperature'] = float(temp_part)
-                elif "Humidity=" in part and "%" in part:
-                    # Extract humidity value
-                    humidity_part = part.split("Humidity=")[
-                        1].replace("%", "").strip()
-                    result['humidity'] = float(humidity_part)
+        # Try key=value style (Rs=, Temp=, Humidity=)
+        # Use regex to be robust to spacing and unit labels
+        m_rs = re.search(r'Rs\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s)
+        m_temp = re.search(
+            r'Temp(?:erature)?\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        m_hum = re.search(
+            r'Humidity\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m_rs or m_temp or m_hum:
+            if m_rs:
+                result['resistance'] = float(m_rs.group(1))
+            if m_temp:
+                result['temperature'] = float(m_temp.group(1))
+            if m_hum:
+                result['humidity'] = float(m_hum.group(1))
+            return result
 
-        # Handle ESP-NOW format for resistance: "[ESP-NOW] Resistance from CC:7B:5C:97:46:7C: 32924.53 ohms"
-        elif "Resistance from" in data and "ohms" in data:
-            parts = data.split(":")
-            if len(parts) >= 2:
-                resistance_part = parts[-1].replace("ohms", "").strip()
-                resistance_value = float(resistance_part)
-                result['resistance'] = resistance_value
+        # Try patterns like: "Resistance ... 32924.53 ohms"
+        m = re.search(
+            r'Resistance[^0-9+-]*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m:
+            result['resistance'] = float(m.group(1))
 
-        # Handle ESP-NOW format for temperature: "[ESP-NOW] Temperature from CC:7B:5C:97:46:7C: 25.4 °C"
-        elif "Temperature from" in data and "°C" in data:
-            parts = data.split(":")
-            if len(parts) >= 2:
-                temp_part = parts[-1].replace("°C", "").strip()
-                temp_value = float(temp_part)
-                result['temperature'] = temp_value
+        # Temperature: "Temp" or "Temperature" followed by number
+        m = re.search(
+            r'(?:Temp(?:erature)?)\D*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m:
+            result['temperature'] = float(m.group(1))
 
-        # Handle combined data format: "Resistance: 32924.53 ohms, Temperature: 25.4 °C"
-        elif "Resistance:" in data and "Temperature:" in data:
-            # Split by comma to get both values
-            parts = data.split(",")
-            for part in parts:
-                part = part.strip()
-                if "Resistance:" in part and "ohms" in part:
-                    resistance_part = part.split(
-                        ":")[1].replace("ohms", "").strip()
-                    result['resistance'] = float(resistance_part)
-                elif "Temperature:" in part and "°C" in part:
-                    temp_part = part.split(":")[1].replace("°C", "").strip()
-                    result['temperature'] = float(temp_part)
+        # Humidity: number followed by % or label
+        m = re.search(
+            r'Humidity\D*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m:
+            result['humidity'] = float(m.group(1))
 
-        # Fallback: try to parse as simple float (for backward compatibility)
-        else:
-            try:
-                value = float(data.strip())
-                # Default to resistance for backward compatibility
-                result['resistance'] = value
-            except ValueError:
-                pass
+        # If nothing yet, try a single plain float (legacy resistance-only payload)
+        if not result:
+            m = re.search(r'^\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*$', s)
+            if m:
+                result['resistance'] = float(m.group(1))
 
         return result if result else None
-    except ValueError:
-        # If parsing fails, return None
+    except Exception:
         return None
 
 
@@ -119,6 +115,8 @@ def serial_read_loop():
                     latest_data = data_point
                     if is_logging:
                         logged_data.append(data_point)
+                        print(
+                            f"Appended to log (total={len(logged_data)}): {data_point}")
                 else:
                     print(f"Failed to parse data: {line}")
         except Exception as e:
@@ -175,12 +173,25 @@ def stop_logging():
 def export_csv():
     if not logged_data:
         return jsonify({'success': False, 'error': 'No data to export'})
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=logged_data[0].keys())
-    writer.writeheader()
-    writer.writerows(logged_data)
-    output.seek(0)
-    return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name=f'serial-data-{datetime.utcnow().date()}.csv')
+    try:
+        output = io.StringIO()
+        # Build a stable list of fieldnames as the union of all keys in logged_data
+        fieldnames = []
+        for row in logged_data:
+            for k in row.keys():
+                if k not in fieldnames:
+                    fieldnames.append(k)
+
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(logged_data)
+        output.seek(0)
+        data_bytes = output.getvalue().encode('utf-8')
+        print(f"Exporting CSV: rows={len(logged_data)}, fields={fieldnames}")
+        return send_file(io.BytesIO(data_bytes), mimetype='text/csv', as_attachment=True, download_name=f'serial-data-{datetime.utcnow().date()}.csv')
+    except Exception as e:
+        print(f"CSV export error: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @app.route('/serial/log/data', methods=['GET'])
