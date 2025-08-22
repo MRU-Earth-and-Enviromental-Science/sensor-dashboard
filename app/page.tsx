@@ -13,6 +13,7 @@ interface SerialData {
   resistance?: number
   temperature?: number
   humidity?: number
+  co2?: number
 }
 
 interface SerialPort {
@@ -45,6 +46,7 @@ const sensorLabels = {
   resistance: "Resistance (Ω)",
   temperature: "Temperature (°C)",
   humidity: "Humidity (%)",
+  co2: "CO2 (ppm)",
 }
 
 export default function SerialDashboard() {
@@ -309,6 +311,33 @@ export default function SerialDashboard() {
         // Update preview chart data for humidity if it's the selected sensor
         if (selectedChart === "humidity") {
           setPreviewChartData([...previewDataBuffers.current["humidity"]])
+        }
+      }
+
+      // Process CO2 data
+      if (data.co2 !== undefined && data.co2 !== null) {
+        const dataPoint = {
+          timestamp: new Date(data.timestamp).toLocaleTimeString(),
+          value: data.co2,
+          fullTimestamp: data.timestamp,
+        }
+
+        if (!previewDataBuffers.current["co2"]) {
+          previewDataBuffers.current["co2"] = []
+        }
+
+        previewDataBuffers.current["co2"] = [
+          ...previewDataBuffers.current["co2"].slice(-49),
+          dataPoint,
+        ]
+
+        setFullHistoryData((prev) => ({
+          ...prev,
+          co2: [...(prev.co2 || []), dataPoint],
+        }))
+
+        if (selectedChart === "co2") {
+          setPreviewChartData([...previewDataBuffers.current["co2"]])
         }
       }
 

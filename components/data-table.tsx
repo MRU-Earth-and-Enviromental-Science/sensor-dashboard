@@ -10,6 +10,7 @@ interface SerialData {
   resistance?: number
   temperature?: number
   humidity?: number
+  co2?: number
 }
 
 interface DataTableProps {
@@ -20,6 +21,7 @@ const sensorLabels = {
   resistance: "Resistance (Ω)",
   temperature: "Temperature (°C)",
   humidity: "Humidity (%)",
+  co2: "CO2 (ppm)",
 }
 
 export function DataTable({ currentData }: DataTableProps) {
@@ -62,6 +64,16 @@ export function DataTable({ currentData }: DataTableProps) {
       } else if (lastKnownValues.humidity !== undefined) {
         // Use last known humidity if current data doesn't have it
         (mergedData as any).humidity = lastKnownValues.humidity
+      }
+
+      if (currentData.co2 !== undefined && currentData.co2 !== null) {
+        setLastKnownValues(prev => ({
+          ...prev,
+          co2: currentData.co2
+        }))
+      } else if (lastKnownValues.co2 !== undefined) {
+        // Use last known CO2 if current data doesn't have it
+        (mergedData as any).co2 = lastKnownValues.co2
       }
 
       setDisplayData(mergedData)

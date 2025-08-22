@@ -10,6 +10,8 @@
 # production
 /build
 
+venv/
+
 # debug & logs
 npm-debug.log*
 yarn-debug.log*

@@ -16,6 +16,7 @@ interface SerialData {
   resistance?: number
   temperature?: number
   humidity?: number
+  co2?: number
 }
 
 interface ChartData {
@@ -64,6 +65,7 @@ export function Dashboard({
   lastDataTime,
 }: DashboardProps) {
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
+  const [transistorOn, setTransistorOn] = useState(false)
 
   return (
     <div className="min-h-screen bg-background dashboard-fade-in flex flex-col">
@@ -100,6 +102,26 @@ export function Dashboard({
                 className="hover:scale-105 transition-transform duration-200"
               >
                 Disconnect
+              </Button>
+              <Button
+                onClick={async () => {
+                  const newState = !transistorOn
+                  setTransistorOn(newState)
+                  if (typeof window !== "undefined" && (window as any).electronAPI?.toggleTransistor) {
+                    try {
+                      await (window as any).electronAPI.toggleTransistor(newState)
+                    } catch (err) {
+                      // keep console error for local debugging
+                      // eslint-disable-next-line no-console
+                      console.error("toggleTransistor error:", err)
+                    }
+                  }
+                }}
+                variant={transistorOn ? "default" : "outline"}
+                size="sm"
+                className="hover:scale-105 transition-transform duration-200"
+              >
+                Transistor
               </Button>
             </div>
           </div>

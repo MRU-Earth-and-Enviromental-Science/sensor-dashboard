@@ -25,12 +25,12 @@ def parse_sensor_data(data):
     """Robustly parse sensor values from various Arduino/ESP-NOW formatted outputs.
 
     Supported examples:
-      - [ESP-NOW] Data from CC:...: Rs=96852.27 ohms, Temp=27.80°C, Humidity=40.00%
-      - [ESP-NOW] Full data from ...: Rs=..., Temp=... C, Hum=... %
+      - [ESP-NOW] Data from CC:...: Rs=96852.27 ohms, Temp=27.80°C, Humidity=40.00%, CO2=412
+      - [ESP-NOW] Full data from ...: Rs=..., Temp=... C, Hum=... %, CO2=...
       - [ESP-NOW] Temp/Hum from ...: 25.4 C, 40.0 %
       - [ESP-NOW] Resistance (legacy) from ...: 32924.53
       - Plain numeric: 32924.53
-    Returns a dict with any of keys: 'resistance', 'temperature', 'humidity' or None if nothing found.
+    Returns a dict with any of keys: 'resistance', 'temperature', 'humidity', 'co2' or None if nothing found.
     """
     try:
         if not data:
@@ -43,20 +43,26 @@ def parse_sensor_data(data):
 
         result = {}
 
-        # Try key=value style (Rs=, Temp=, Humidity=)
-        # Use regex to be robust to spacing and unit labels
+        # Try key=value style (Rs=, Temp=, Humidity=, CO2=)
         m_rs = re.search(r'Rs\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s)
         m_temp = re.search(
             r'Temp(?:erature)?\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
         m_hum = re.search(
             r'Humidity\s*=\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
-        if m_rs or m_temp or m_hum:
+        m_co2 = re.search(
+            r'CO2\s*(?:=|:)?\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m_rs or m_temp or m_hum or m_co2:
             if m_rs:
                 result['resistance'] = float(m_rs.group(1))
             if m_temp:
                 result['temperature'] = float(m_temp.group(1))
             if m_hum:
                 result['humidity'] = float(m_hum.group(1))
+            if m_co2:
+                try:
+                    result['co2'] = float(m_co2.group(1))
+                except ValueError:
+                    pass
             return result
 
         # Try patterns like: "Resistance ... 32924.53 ohms"
@@ -76,6 +82,15 @@ def parse_sensor_data(data):
             r'Humidity\D*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
         if m:
             result['humidity'] = float(m.group(1))
+
+        # CO2 ppm pattern (numeric, accept floats)
+        m = re.search(
+            r'CO2\D*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)', s, re.IGNORECASE)
+        if m:
+            try:
+                result['co2'] = float(m.group(1))
+            except ValueError:
+                pass
 
         # If nothing yet, try a single plain float (legacy resistance-only payload)
         if not result:

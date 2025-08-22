@@ -24,6 +24,7 @@ const sensorLabels = {
   resistance: "Resistance (Ω)",
   temperature: "Temperature (°C)",
   humidity: "Humidity (%)",
+  co2: "CO2 (ppm)",
 }
 
 // Define colors for sensors
@@ -31,6 +32,7 @@ const sensorColors = {
   resistance: "#0080FF", // Electric blue
   temperature: "#FF6B35", // Orange-red
   humidity: "#10B981", // Green
+  co2: "#6B21A8", // Purple
 }
 
 const graphableFields = Object.keys(sensorLabels) as (keyof typeof sensorLabels)[]
