@@ -65,9 +65,9 @@ function startPythonBackend() {
     } else {
       backendName = 'serial_backend';
     }
-    
+
     const resourcePath = path.join(process.resourcesPath, backendName);
-    
+
     // Check if the backend file exists
     if (!fs.existsSync(resourcePath)) {
       console.error(`Backend not found at: ${resourcePath}`);
@@ -75,10 +75,43 @@ function startPythonBackend() {
       const fallbackScript = path.join(process.resourcesPath, 'serial_backend.py');
       if (fs.existsSync(fallbackScript)) {
         console.log('Using fallback Python script');
-        pythonCmd = 'python';
-        pythonArgs = [fallbackScript];
+        // Try different Python commands
+        const pythonCommands = ['python', 'python3', 'py'];
+        let pythonFound = false;
+
+        for (const cmd of pythonCommands) {
+          try {
+            // Test if Python is available
+            require('child_process').execSync(`${cmd} --version`, { stdio: 'ignore' });
+            pythonCmd = cmd;
+            pythonArgs = [fallbackScript];
+            pythonFound = true;
+            break;
+          } catch (e) {
+            // Python command not found, try next
+          }
+        }
+
+        if (!pythonFound) {
+          console.error('Python not found. Please install Python 3.x for Windows backend support.');
+          // Show user-friendly error
+          setTimeout(() => {
+            dialog.showErrorBox('Python Required',
+              'The sensor backend requires Python 3.x to be installed.\n\n' +
+              'Please install Python from python.org and restart the application.\n\n' +
+              'Alternatively, download the release version from GitHub which includes a pre-built backend.'
+            );
+          }, 3000);
+          return;
+        }
       } else {
         console.error('No backend available');
+        setTimeout(() => {
+          dialog.showErrorBox('Backend Missing',
+            'The sensor backend is not available.\n\n' +
+            'Please download the latest release from GitHub for proper backend support.'
+          );
+        }, 3000);
         return;
       }
     } else {
