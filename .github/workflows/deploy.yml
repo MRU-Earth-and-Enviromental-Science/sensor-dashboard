@@ -1,0 +1,155 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a new release'
+        required: false
+        default: false
+        type: boolean
+      version:
+        description: 'Version for release (e.g., v1.0.1)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: windows
+            target: --win --x64
+            artifact: windows-x64
+          - os: macos-13
+            platform: mac-intel  
+            target: --mac --x64
+            artifact: macos-intel
+          - os: macos-latest
+            platform: mac-arm64
+            target: --mac --arm64
+            artifact: macos-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask pyserial
+
+    - name: Install Node dependencies
+      run: npm ci
+
+    - name: Build Python backend
+      shell: bash
+      run: |
+        python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
+
+    - name: Build Next.js app
+      run: |
+        npm run build
+        node fix-assets.js
+
+    - name: Build Electron app
+      run: npx electron-builder ${{ matrix.target }} --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}-build
+        path: |
+          dist/*.exe
+          dist/*.dmg
+          dist/*.exe.blockmap
+          dist/*.dmg.blockmap
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.inputs.create_release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+
+    - name: Display artifacts
+      run: find release-artifacts -type f -name "*.exe" -o -name "*.dmg"
+
+    - name: Get version
+      id: get-version
+      run: |
+        if [ -n "${{ github.event.inputs.version }}" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get-version.outputs.version }}
+        name: Environmental Sensor Dashboard ${{ steps.get-version.outputs.version }}
+        body: |
+          ## 📊 Environmental Sensor Dashboard ${{ steps.get-version.outputs.version }}
+          
+          ### Downloads
+          
+          **Windows (x64):**
+          - Setup Installer and Portable Version
+          
+          **macOS:**
+          - Intel Macs (x64) and Apple Silicon (ARM64)
+          
+          ### Features
+          - Real-time sensor data monitoring  
+          - Interactive charts and visualizations
+          - Serial port communication
+          - Cross-platform desktop application
+          - No Python installation required (bundled backend)
+          
+          ### Installation
+          1. Download the appropriate version for your system
+          2. **Windows:** Run the Setup.exe installer or use the portable .exe
+          3. **macOS:** Open the .dmg file and drag to Applications
+          4. Launch the application and connect your sensor!
+          
+          Built from commit ${{ github.sha }}
+        files: |
+          release-artifacts/**/*.exe
+          release-artifacts/**/*.dmg
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -13,6 +13,7 @@ A cross-platform desktop application for monitoring environmental sensor data wi
 - 🖥️ **Cross-platform** - Works on macOS, Windows, and Linux
 - 🐍 **No setup required** - Python backend fully bundled
 - 🌓 **Dark/Light themes** - Choose your preferred interface
+- 🚀 **Auto-builds** - Automatically builds for all platforms via GitHub Actions
 
 ## 📥 Download & Install
 
@@ -35,6 +36,29 @@ A cross-platform desktop application for monitoring environmental sensor data wi
 3. **Connect** your environmental sensor via USB
 4. **Launch** the application
 5. **Select** your serial port and start monitoring!
+
+## 🔧 Automated Builds
+
+This project uses GitHub Actions to automatically build desktop applications for all platforms:
+
+### Continuous Integration
+- **Builds** on every push to main branch and pull requests
+- **Tests** all platforms: Windows x64, macOS Intel, macOS ARM64
+- **Artifacts** are stored for 30 days for testing
+
+### Automated Releases
+- **Manual releases**: Go to Actions → "Create Release" → Run workflow
+- **Version tagging**: Automatically updates package.json and creates git tags
+- **Multi-platform**: Builds Windows Setup/Portable and macOS Intel/ARM64 versions
+- **GitHub Releases**: Automatically creates releases with proper file naming
+
+### For Developers
+To trigger a new release:
+1. Go to the repository's Actions tab
+2. Select "Create Release" workflow
+3. Click "Run workflow"
+4. Enter version (e.g., `v1.0.1`)
+5. The system will build and publish automatically
 
 ## � Supported Sensors
 

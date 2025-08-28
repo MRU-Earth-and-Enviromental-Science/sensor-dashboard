@@ -1,0 +1,187 @@
+name: Create Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., v1.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  create-tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.create-tag.outputs.tag }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Update package.json version
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        VERSION_NUMBER="${VERSION#v}"
+        npm version $VERSION_NUMBER --no-git-tag-version
+        git add package.json
+        git commit -m "chore: bump version to $VERSION"
+
+    - name: Create and push tag
+      id: create-tag
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        git tag $VERSION
+        git push origin main --tags
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
+
+  build-and-release:
+    needs: [create-tag]
+    if: always() && (needs.create-tag.result == 'success' || github.event_name == 'push')
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: windows
+            target: --win --x64
+          - os: macos-13
+            platform: mac-intel
+            target: --mac --x64
+          - os: macos-latest
+            platform: mac-arm64
+            target: --mac --arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.create-tag.outputs.tag || github.ref }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask pyserial
+
+    - name: Install Node dependencies
+      run: npm ci
+
+    - name: Build Python backend
+      shell: bash
+      run: |
+        python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
+
+    - name: Build Next.js app
+      run: |
+        npm run build
+        node fix-assets.js
+
+    - name: Build Electron app
+      run: npx electron-builder ${{ matrix.target }} --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.platform }}
+        path: |
+          dist/*.exe
+          dist/*.dmg
+          dist/*.exe.blockmap
+          dist/*.dmg.blockmap
+
+  create-release:
+    needs: [build-and-release, create-tag]
+    if: always() && needs.build-and-release.result == 'success'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version
+      id: get-version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ needs.create-tag.outputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+
+    - name: Display structure
+      run: find release-artifacts -type f -name "*.exe" -o -name "*.dmg" | head -20
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get-version.outputs.version }}
+        name: Environmental Sensor Dashboard ${{ steps.get-version.outputs.version }}
+        body: |
+          ## 📊 Environmental Sensor Dashboard ${{ steps.get-version.outputs.version }}
+          
+          ### Downloads
+          
+          **Windows (x64):**
+          - Setup Installer (Recommended)
+          - Portable Version
+          
+          **macOS:**
+          - Intel Macs (x64)
+          - Apple Silicon (ARM64)
+          
+          ### Features
+          - Real-time sensor data monitoring  
+          - Interactive charts and visualizations
+          - Serial port communication
+          - Cross-platform desktop application
+          - No Python installation required (bundled backend)
+          
+          ### Installation
+          1. Download the appropriate version for your system
+          2. **Windows:** Run the Setup.exe installer or use the portable .exe
+          3. **macOS:** Open the .dmg file and drag to Applications
+          4. Launch the application and connect your sensor!
+          
+          ### System Requirements
+          - **Windows:** Windows 10 or later (x64)
+          - **macOS:** macOS 10.15 or later (Intel or Apple Silicon)
+          
+          Built from commit ${{ github.sha }}
+        files: |
+          release-artifacts/**/*.exe
+          release-artifacts/**/*.dmg
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

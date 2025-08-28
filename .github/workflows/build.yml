@@ -1,0 +1,101 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: windows
+            target: --win --x64
+            artifact: windows-x64
+          - os: macos-13
+            platform: mac-intel
+            target: --mac --x64
+            artifact: macos-intel
+          - os: macos-latest
+            platform: mac-arm64
+            target: --mac --arm64
+            artifact: macos-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask pyserial
+
+    - name: Install Node dependencies
+      run: npm ci
+
+    - name: Build Python backend
+      shell: bash
+      run: |
+        python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
+
+    - name: Build Next.js app
+      run: |
+        npm run build
+        node fix-assets.js
+
+    - name: Build Electron app
+      run: npx electron-builder ${{ matrix.target }} --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}-${{ github.sha }}
+        path: |
+          dist/*.exe
+          dist/*.dmg
+          dist/*.exe.blockmap
+          dist/*.dmg.blockmap
+          dist/latest*.yml
+        retention-days: 30
+
+  summary:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows x64 | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| macOS Intel | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| macOS ARM64 | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
