@@ -1,6 +1,6 @@
 {
   "name": "enviromental-monitor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Environmental Sensor Dashboard - A desktop application for monitoring environmental sensor data",
   "author": "Environmental Science Team",
   "main": "public/main.js",
