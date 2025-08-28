@@ -1,6 +1,6 @@
 {
-  "appId": "com.example.serial-dashboard",
-  "productName": "Serial Dashboard",
+  "appId": "com.environmentalscience.sensor-dashboard",
+  "productName": "Environmental Sensor Dashboard",
   "directories": {
     "output": "dist"
   },
@@ -19,14 +19,52 @@
   "asarUnpack": [
     "public/preload.js"
   ],
+  "buildDependenciesFromSource": false,
+  "nodeGypRebuild": false,
+  "npmRebuild": false,
   "mac": {
-    "target": "dmg",
-    "category": "public.app-category.developer-tools"
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      }
+    ],
+    "category": "public.app-category.developer-tools",
+    "icon": "public/icon.icns"
   },
   "win": {
-    "target": "nsis"
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64",
+          "ia32"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "public/icon.ico"
   },
   "linux": {
-    "target": "AppImage"
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
   }
 }

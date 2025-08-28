@@ -1,6 +1,8 @@
 {
   "name": "enviromental-monitor",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Environmental Sensor Dashboard - A desktop application for monitoring environmental sensor data",
+  "author": "Environmental Science Team",
   "main": "public/main.js",
   "private": true,
   "scripts": {
@@ -9,10 +11,16 @@
     "start": "next start",
     "electron": "electron public/main.js",
     "electron-dev": "ELECTRON_IS_DEV=1 electron public/main.js",
-    "build-electron": "next build && node fix-assets.js",
-    "dist": "npm run build-electron && electron-builder --publish never"
+    "build-backend": "./venv/bin/python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py",
+    "build-electron": "npm run build-backend && next build && node fix-assets.js",
+    "dist": "npm run build-electron && electron-builder --publish never",
+    "dist-mac": "npm run build-electron && electron-builder --mac --publish never",
+    "dist-win": "npm run build-electron && electron-builder --win --publish never",
+    "dist-linux": "npm run build-electron && electron-builder --linux --publish never",
+    "dist-all": "npm run build-electron && electron-builder --mac --win --linux --publish never"
   },
   "dependencies": {
+    "@emnapi/runtime": "^1.4.5",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
@@ -63,6 +71,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
     "serialport": "latest",
+    "sharp": "0.33.5",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
