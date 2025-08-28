@@ -106,6 +106,16 @@ def serial_read_loop():
         time.sleep(0.01)
 
 
+# Health check endpoint
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    })
+
+
 @app.route('/serial/ports', methods=['GET'])
 def list_ports():
     ports = serial.tools.list_ports.comports()

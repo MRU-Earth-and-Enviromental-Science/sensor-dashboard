@@ -1,0 +1,121 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask pyserial
+        npm ci
+
+    - name: Build Python backend for Windows
+      run: python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
+
+    - name: Build Next.js and Electron
+      run: |
+        npm run build
+        node fix-assets.js
+        npx electron-builder --win --x64 --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Windows builds
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-x64-builds
+        path: |
+          dist/*.exe
+          dist/*.exe.blockmap
+        retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask pyserial
+        npm ci
+
+    - name: Build Python backend for macOS
+      run: python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
+
+    - name: Build Next.js and Electron
+      run: |
+        npm run build
+        node fix-assets.js
+        npx electron-builder --mac --universal --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload macOS builds
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-universal-builds
+        path: |
+          dist/*.dmg
+          dist/*.dmg.blockmap
+        retention-days: 7
+
+  summary:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## 🏗️ Multi-Platform Build Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Status | Note |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows x64 | ${{ needs.build-windows.result == 'success' && '✅ Success' || '❌ Failed' }} | Native Windows backend |" >> $GITHUB_STEP_SUMMARY
+        echo "| macOS Universal | ${{ needs.build-macos.result == 'success' && '✅ Success' || '❌ Failed' }} | Intel + Apple Silicon |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Artifacts Available:" >> $GITHUB_STEP_SUMMARY
+        echo "- Windows builds with native \`.exe\` backend" >> $GITHUB_STEP_SUMMARY
+        echo "- macOS universal builds (Intel + ARM64)" >> $GITHUB_STEP_SUMMARY

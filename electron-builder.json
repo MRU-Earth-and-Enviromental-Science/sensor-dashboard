@@ -14,6 +14,10 @@
     {
       "from": "dist/serial_backend",
       "to": "serial_backend"
+    },
+    {
+      "from": "serial_backend.py",
+      "to": "serial_backend.py"
     }
   ],
   "asarUnpack": [
@@ -50,8 +54,7 @@
           "x64"
         ]
       }
-    ],
-    "icon": "public/icon.ico"
+    ]
   },
   "linux": {
     "target": [

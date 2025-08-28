@@ -49,6 +49,7 @@ function createWindow() {
 function startPythonBackend() {
   const isDev = process.env.ELECTRON_IS_DEV === "1";
   const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
 
   let pythonCmd, pythonArgs;
 
@@ -58,26 +59,72 @@ function startPythonBackend() {
     pythonArgs = [path.join(__dirname, '..', 'serial_backend.py')];
   } else {
     // Use binary in production - look in extraResources
-    const resourcePath = process.platform === 'darwin'
-      ? path.join(process.resourcesPath, 'serial_backend')
-      : path.join(process.resourcesPath, 'serial_backend.exe');
-    pythonCmd = resourcePath;
-    pythonArgs = [];
+    let backendName;
+    if (isWin) {
+      backendName = 'serial_backend.exe';
+    } else {
+      backendName = 'serial_backend';
+    }
+    
+    const resourcePath = path.join(process.resourcesPath, backendName);
+    
+    // Check if the backend file exists
+    if (!fs.existsSync(resourcePath)) {
+      console.error(`Backend not found at: ${resourcePath}`);
+      // Fallback to Python script if available
+      const fallbackScript = path.join(process.resourcesPath, 'serial_backend.py');
+      if (fs.existsSync(fallbackScript)) {
+        console.log('Using fallback Python script');
+        pythonCmd = 'python';
+        pythonArgs = [fallbackScript];
+      } else {
+        console.error('No backend available');
+        return;
+      }
+    } else {
+      pythonCmd = resourcePath;
+      pythonArgs = [];
+    }
   }
 
   try {
+    console.log(`Starting backend: ${pythonCmd} ${pythonArgs.join(' ')}`);
     pythonProcess = spawn(pythonCmd, pythonArgs, {
-      stdio: 'ignore',
-      detached: true
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false
+    });
+
+    pythonProcess.stdout.on('data', (data) => {
+      console.log(`Backend stdout: ${data}`);
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      console.error(`Backend stderr: ${data}`);
+    });
+
+    pythonProcess.on('close', (code) => {
+      console.log(`Backend process exited with code ${code}`);
     });
 
     // Wait a bit for the backend to start
     setTimeout(() => {
       // Optional: check if backend is responding
+      checkBackendHealth();
     }, 2000);
   } catch (error) {
     console.error('Failed to start Python backend:', error);
   }
+}
+
+function checkBackendHealth() {
+  // Simple health check
+  axios.get('http://localhost:5000/health')
+    .then(response => {
+      console.log('Backend is healthy');
+    })
+    .catch(error => {
+      console.error('Backend health check failed:', error.message);
+    });
 }
 
 app.whenReady().then(() => {

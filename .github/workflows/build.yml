@@ -54,15 +54,8 @@ jobs:
     - name: Install Node dependencies
       run: npm ci
 
-    - name: Build Python backend
-      shell: bash
-      run: |
-        python -m PyInstaller --onefile --name serial_backend --distpath dist --workpath build --specpath build --console serial_backend.py
-
-    - name: Build Next.js app
-      run: |
-        npm run build
-        node fix-assets.js
+    - name: Build application (Python backend + Next.js + Electron)
+      run: npm run build-electron-ci
 
     - name: Build Electron app
       run: npx electron-builder ${{ matrix.target }} --publish never
