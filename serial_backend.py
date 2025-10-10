@@ -89,7 +89,7 @@ def serial_read_loop():
 
                 if len(buffer_lines) >= expected_lines_per_block:
                     full_data = '\n'.join(buffer_lines)
-                    timestamp = datetime.utcnow().isoformat()
+                    timestamp = datetime.now().isoformat()
                     parsed = parse_multiline_serial_data(full_data)
                     data_point = {
                         'timestamp': timestamp,
@@ -170,7 +170,7 @@ def export_csv():
     writer.writeheader()
     writer.writerows(logged_data)
     output.seek(0)
-    return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name=f'serial-data-{datetime.utcnow().date()}.csv')
+    return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name=f'serial-data-{datetime.now().date()}.csv')
 
 
 @app.route('/serial/log/data', methods=['GET'])
